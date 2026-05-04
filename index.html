@@ -7,119 +7,128 @@
     <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        :root { --bg:#020202; --panel:#080808; --green:#00ffcc; --red:#ff0055; --border:#1a1a1a; --dim:#555; --glow: rgba(0,255,204,0.1); }
+        :root { --bg:#000; --panel:#050505; --green:#00ff41; --red:#ff0000; --border:#003b00; --dim:#008f11; }
         * { box-sizing:border-box; margin:0; padding:0; }
         body { font-family:'JetBrains Mono',monospace; background:var(--bg); color:var(--green); display:flex; height:100vh; overflow:hidden; }
 
-        #sidebar { width:280px; min-width:280px; background:var(--panel); border-right:1px solid var(--border); padding:20px; display:flex; flex-direction:column; gap:20px; overflow-y:auto; height:100vh; z-index:100; }
-        #sidebar::-webkit-scrollbar { width:2px; }
-        #sidebar::-webkit-scrollbar-thumb { background:var(--border); }
+        #sidebar { width:300px; min-width:300px; background:var(--panel); border-right:2px solid var(--border); padding:16px; display:flex; flex-direction:column; gap:16px; overflow-y:auto; height:100vh; }
+        #sidebar::-webkit-scrollbar { width:4px; }
+        #sidebar::-webkit-scrollbar-thumb { background:var(--green); }
 
-        .logo { font-size:1rem; font-weight:800; letter-spacing:3px; text-transform:uppercase; border-bottom:1px solid var(--border); padding-bottom:15px; text-shadow: 0 0 15px var(--green); color:#fff; }
-        .section { display:flex; flex-direction:column; gap:10px; }
-        .stitle { font-size:.6rem; letter-spacing:.2em; text-transform:uppercase; color:var(--dim); font-weight:800; margin-bottom:5px; }
+        .logo { font-size:1.1rem; font-weight:700; letter-spacing:2px; text-transform:uppercase; border-bottom:1px solid var(--border); padding-bottom:10px; }
+        .section { border:1px solid var(--border); padding:10px; display:flex; flex-direction:column; gap:8px; }
+        .stitle { font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); font-weight:700; }
 
-        select,input[type="number"] { background:#000; border:1px solid var(--border); color:#fff; padding:10px; font-family:inherit; font-size:.75rem; width:100%; outline:none; transition: 0.3s; }
-        select:focus,input:focus { border-color:var(--green); }
+        select,input[type="number"] { background:#000; border:1px solid var(--border); color:var(--green); padding:8px; font-family:inherit; font-size:.8rem; width:100%; outline:none; }
+        select:focus,input:focus { border-color:var(--green); box-shadow:0 0 4px var(--green); }
 
         .pgrid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-        .pbtn { background:#000; border:1px solid var(--border); color:#aaa; padding:8px 4px; cursor:pointer; font-family:inherit; font-size:.7rem; text-align:center; transition: 0.2s; }
-        .pbtn:hover { color:#fff; border-color:var(--dim); }
-        .pbtn.active { background:var(--green); color:#000; font-weight:800; border-color:var(--green); box-shadow: 0 0 10px var(--green); }
+        .pbtn { background:#000; border:1px solid var(--border); color:var(--green); padding:8px 4px; cursor:pointer; font-family:inherit; font-size:.75rem; text-align:center; }
+        .pbtn:hover { background:var(--border); }
+        .pbtn.active { background:var(--green); color:#000; font-weight:700; }
 
-        #main { flex:1; display:flex; flex-direction:column; position:relative; min-width:0; background:#000; }
-        
-        /* TOP STATUS BAR */
-        #topBar { height:60px; background:var(--panel); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 25px; gap:40px; }
-        .stat { display:flex; flex-direction:column; gap:2px; }
-        .sl { font-size:.55rem; color:var(--dim); text-transform:uppercase; letter-spacing:1.5px; }
-        .sv { font-size:.9rem; font-weight:800; color:#fff; }
+        label { font-size:.7rem; color:var(--dim); }
 
-        #chartBox { flex:1; position:relative; }
+        #main { flex:1; display:flex; flex-direction:column; position:relative; min-width:0; }
+        #chartBox { flex:1; position:relative; min-height:200px; }
 
-        .ov { position:absolute; z-index:50; pointer-events:none; }
-        #infoOv { top:20px; left:20px; }
-        #connOv { top:20px; right:20px; display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.6); padding:6px 12px; border:1px solid var(--border); border-radius:4px; }
+        .ov { position:absolute; background:rgba(0,0,0,.88); border:1px solid var(--border); padding:10px 14px; z-index:50; font-size:.8rem; }
+        #infoOv { top:14px; left:14px; pointer-events:none; }
+        #portOv { top:14px; left:210px; display:flex; gap:20px; font-size:.72rem; }
+        #connOv { top:14px; right:14px; font-size:.6rem; display:flex; align-items:center; gap:6px; z-index:1000; }
 
-        /* TRADE BUTTONS IN SIDEBAR */
-        .trade-group { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
-        .tb { width:100%; padding:14px; border:1px solid; font-family:inherit; font-weight:800; font-size:.75rem; cursor:pointer; text-transform:uppercase; transition: 0.3s; letter-spacing:1px; }
-        .tbuy { background:rgba(0,255,204,0.05); color:var(--green); border-color:var(--green); }
-        .tbuy:hover { background:var(--green); color:#000; box-shadow: 0 0 15px var(--green); }
-        .tsell { background:rgba(255,0,85,0.05); color:var(--red); border-color:var(--red); }
-        .tsell:hover { background:var(--red); color:#fff; box-shadow: 0 0 15px var(--red); }
-        .tclose { background:#111; color:#fff; border-color:#333; margin-top:5px; }
+        .dot { width:6px; height:6px; border-radius:50%; display:inline-block; }
+        .don { background:var(--green); box-shadow:0 0 6px var(--green); }
+        .doff { background:var(--red); box-shadow:0 0 6px var(--red); }
+
+        .sc { display:flex; flex-direction:column; gap:2px; }
+        .sl { color:var(--dim); font-size:.6rem; }
+        .sv { font-weight:700; color:#fff; font-size:.85rem; }
+
+        #tradeBtns { position:absolute; bottom:20px; right:20px; display:flex; flex-direction:column; gap:10px; z-index:60; }
+        .tb { padding:12px 28px; border:1px solid; font-family:inherit; font-weight:700; font-size:.8rem; cursor:pointer; text-transform:uppercase; }
+        .tbuy { background:#001a00; color:var(--green); border-color:var(--green); }
+        .tsell { background:#1a0000; color:var(--red); border-color:var(--red); }
+        .tclose { background:#222; color:#fff; border-color:#555; }
 
         .sw {position:relative;display:inline-block;width:34px;height:18px;}
         .sw input {opacity:0;width:0;height:0;}
-        .slid {position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#111;transition:.4s;border-radius:18px;border:1px solid #222;}
-        .slid:before {position:absolute;content:"";height:10px;width:10px;left:3px;bottom:3px;background-color:#333;transition:.4s;border-radius:50%;}
-        input:checked + .slid {border-color:var(--green);}
-        input:checked + .slid:before {transform:translateX(16px); background-color:var(--green);}
+        .slid {position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#333;transition:.4s;border-radius:18px;}
+        .slid:before {position:absolute;content:"";height:12px;width:12px;left:3px;bottom:3px;background-color:white;transition:.4s;border-radius:50%;}
+        input:checked + .slid {background-color:var(--main);}
+        input:checked + .slid:before {transform:translateX(16px);}
         
-        #logP { height:200px; border-top:1px solid var(--border); overflow-y:auto; background: #050505; }
-        #lL {height:170px;overflow-y:auto;font-size:0.7rem;padding:15px;}
-        .log-row {display:flex; gap:15px; padding:8px 0; border-bottom:1px solid #0f0f0f; font-family:'JetBrains Mono', monospace; align-items:center; }
-
+        #logP { height:180px; border-top:2px solid var(--border); overflow-y:auto; font-size:.75rem; }
+        #lL {height:150px;overflow-y:auto;font-size:0.75rem;border-top:1px solid #111;padding:10px;background:#050505;}
+        .log-row {display:flex;gap:15px;padding:4px 0;border-bottom:1px solid #0a0a0a;font-family:'JetBrains Mono', monospace;}
     </style>
 </head>
 <body>
 <div id="sidebar">
-    <div class="logo">YASER ER ELITE_</div>
-    <div class="section"><div class="stitle">PARİTELER</div><div class="pgrid" id="pG"></div></div>
-    <div class="section"><div class="stitle">PERİYOT</div>
-        <select id="tfS"><option value="1m">1m</option><option value="5m" selected>5m</option><option value="15m">15m</option><option value="1h">1h</option></select>
+    <div class="logo">> Yaser ER Algoritma_</div>
+    <div class="section"><div class="stitle">[ PARİTE ]</div><div class="pgrid" id="pG"></div></div>
+    <div class="section"><div class="stitle">[ ZAMAN DİLİMİ ]</div>
+        <select id="tfS"><option value="1m">1 Dakika</option><option value="5m" selected>5 Dakika</option><option value="15m">15 Dakika</option><option value="1h">1 Saat</option></select>
     </div>
-    <div class="section"><div class="stitle">ALGORİTMA AYARLARI</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
-            <div><label>Hassasiyet</label><input type="number" id="kH" value="15"></div>
-            <div><label>Alpha</label><input type="number" id="kA" value="8"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:5px">
-            <div><label>RSI Yavaş</label><input type="number" id="rs1" value="1000"></div>
-            <div><label>RSI Hızlı</label><input type="number" id="rs2" value="25"></div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px;border-top:1px solid #111;padding-top:10px">
-            <div style="display:flex;gap:10px;align-items:center">
-                <label class="sw"><input type="checkbox" id="alg1E" checked><span class="slid"></span></label>
-                <span style="font-size:0.6rem;color:#888">ALG-1 (SİSTEMATİK)</span>
+    <div class="section"><div class="stitle">[ TRADER AYARLARI ]</div>
+        <label>Kernel h</label><input type="number" id="kH" value="15">
+        <label>Alpha</label><input type="number" id="kA" value="8" step="0.25">
+        <label>Hacim RSI 1 (Yavaş)</label><input type="number" id="rs1" value="1000">
+        <label>Hacim RSI 2 (Hızlı)</label><input type="number" id="rs2" value="25">
+        
+        <div class="sS">
+            <div class="sL">SİNYAL AYARLARI</div>
+            <div style="display:flex;gap:10px;margin-bottom:10px">
+                <label class="sw">
+                    <input type="checkbox" id="alg1E" checked>
+                    <span class="slid"></span>
+                </label>
+                <span style="font-size:0.7rem;color:var(--dim)">ALGORİTMA 1 (KERNEL+HACİM)</span>
             </div>
-            <div style="display:flex;gap:10px;align-items:center">
-                <label class="sw"><input type="checkbox" id="alg2E"><span class="slid"></span></label>
-                <span style="font-size:0.6rem;color:#888">ALG-2 (TREND-BACK)</span>
+            <div style="display:flex;gap:10px">
+                <label class="sw">
+                    <input type="checkbox" id="alg2E">
+                    <span class="slid"></span>
+                </label>
+                <span style="font-size:0.7rem;color:var(--dim)">ALGORİTMA 2 (TREND-BACK)</span>
             </div>
         </div>
-    </div>
-    <div class="section">
-        <div class="stitle">İŞLEM MERKEZİ</div>
-        <div class="trade-group">
-            <button class="tb tbuy" onclick="openP('BUY')">LONG AÇ</button>
-            <button class="tb tsell" onclick="openP('SELL')">SHORT AÇ</button>
-            <button class="tb tclose" id="clB" style="display:none" onclick="closeP()">POZİSYONU KAPAT</button>
+        
+        <div class="sS">
+            <div class="sL">DURUM</div>
+            <div id="sL" style="font-size:.68rem;color:var(--dim);line-height:1.6">BOOT...</div>
         </div>
     </div>
-    <div class="section"><div class="stitle">SİSTEM DURUMU</div><div id="sL" style="font-size:.6rem;color:#444">READY...</div></div>
 </div>
 <div id="main">
-    <div id="topBar">
-        <div class="stat"><span class="sl">CÜZDAN</span><span class="sv" id="bV">$100.00</span></div>
-        <div class="stat"><span class="sl">AÇIK PNL</span><span class="sv" id="pV">$0.00</span></div>
-        <div class="stat"><span class="sl">K/Z TOPLAM</span><span class="sv" id="pS">+$0.00</span></div>
-        <div class="stat" style="margin-left:auto"><span class="sl">İŞLEM ADEDİ</span><span class="sv" id="tC">0</span></div>
-    </div>
     <div id="chartBox">
         <div class="ov" id="infoOv">
-            <div id="sN" style="font-weight:900;color:#fff;font-size:1.1rem;letter-spacing:1px">BTCUSDT</div>
-            <div id="sP" style="font-size:1.4rem;margin:4px 0;color:var(--green)">—</div>
-            <div id="sC" style="font-size:.7rem;opacity:0.6">0.00%</div>
+            <div id="sN" style="font-weight:700;color:#fff;font-size:1rem">BTCUSDT</div>
+            <div id="sP" style="font-size:1.3rem;margin:4px 0">—</div>
+            <div id="sC" style="font-size:.75rem">0.00%</div>
         </div>
-        <div class="ov" id="connOv">
-            <span id="heartbeat" style="font-size:0.5rem;color:#444">[0]</span>
-            <span class="dot doff" id="cD"></span>
-            <span id="cT" style="font-size:0.6rem;font-weight:bold;color:#fff">BAĞLANTI YOK</span>
+        <div class="ov" id="portOv">
+            <div class="sc"><span class="sl">BAKİYE</span><span class="sv" id="bV">$100.00</span></div>
+            <div class="sc"><span class="sl">AÇIK PNL</span><span class="sv" id="pV">$0.00</span></div>
+            <div class="sc"><span class="sl">İŞLEM</span><span class="sv" id="tC">0</span></div>
+            <div class="sc"><span class="sl">K/Z</span><span class="sv" id="pS">+$0.00</span></div>
+        </div>
+        <div class="ov" id="connOv" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
+            <div style="display:flex;align-items:center;gap:6px">
+                <span id="heartbeat" style="font-size:0.6rem;color:var(--dim)">[ 0 ]</span>
+                <span class="dot doff" id="cD"></span>
+                <span id="cT" style="font-weight:bold">BAŞLATILIYOR</span>
+            </div>
+            <div id="dataSource" style="font-size:0.6rem;color:#00ff41;opacity:0.7">YEDEK BEKLENİYOR...</div>
+            <div id="liveTick" style="color:#fff;font-size:0.7rem;background:rgba(0,255,65,0.1);padding:2px 6px;border-radius:2px;display:none">FİYAT BEKLENİYOR...</div>
+        </div>
+        <div id="tradeBtns">
+            <button class="tb tbuy" onclick="openP('BUY')">ALIM AÇ</button>
+            <button class="tb tsell" onclick="openP('SELL')">SATIŞ AÇ</button>
+            <button class="tb tclose" id="clB" style="display:none" onclick="closeP()">KAPAT</button>
         </div>
     </div>
-    <div id="logP"><div id="lL"></div></div>
+    <div id="logP"><div class="stitle" style="padding:10px">[ LOG ]</div><div id="lL"></div></div>
 </div>
 <script>
 const PAIRS=['BTCUSDT','ETHUSDT','FILUSDT','ENAUSDT','ADAUSDT','DOGEUSDT','XRPUSDT'];
@@ -187,20 +196,17 @@ function buildChart(){
     const box=document.getElementById('chartBox');
     chart=LightweightCharts.createChart(box,{
         width:box.clientWidth,height:box.clientHeight,
-        layout:{background:{type:'solid',color:'#000'},textColor:'#00ffcc'},
-        grid:{vertLines:{color:'#0a0a0a'},horzLines:{color:'#0a0a0a'}},
+        layout:{background:{type:'solid',color:'#000'},textColor:'#00ff41'},
+        grid:{vertLines:{color:'#001a00'},horzLines:{color:'#001a00'}},
         crosshair:{mode:LightweightCharts.CrosshairMode.Normal},
-        rightPriceScale:{
-            borderColor:'#1a1a1a',
-            scaleMargins: { top: 0.15, bottom: 0.25 } // Mumların yapışmasını engeller
-        },
-        timeScale:{borderColor:'#1a1a1a',timeVisible:true},
+        rightPriceScale:{borderColor:'#003b00'},
+        timeScale:{borderColor:'#003b00',timeVisible:true},
     });
-    cS=chart.addCandlestickSeries({upColor:'#00ffcc',downColor:'#ff0055',wickUpColor:'#00ffcc',wickDownColor:'#ff0055',borderVisible:false});
+    cS=chart.addCandlestickSeries({upColor:'#00ff41',downColor:'#ff0000',wickUpColor:'#00ff41',wickDownColor:'#ff0000',borderVisible:false});
     kernelSeries=chart.addLineSeries({lineWidth:2,lastValueVisible:false,priceLineVisible:false});
     r1S=chart.addLineSeries({color:'#ffffff',lineWidth:2,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
-    r2S=chart.addLineSeries({color:'#3153ff',lineWidth:1,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
-    chart.priceScale('rsi').applyOptions({autoScale:true,scaleMargins:{top:0.8,bottom:0}});
+    r2S=chart.addLineSeries({color:'#4444ff',lineWidth:1,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
+    chart.priceScale('rsi').applyOptions({autoScale:true,scaleMargins:{top:0.78,bottom:0}});
     new ResizeObserver(()=>chart.resize(box.clientWidth,box.clientHeight)).observe(box);
 }
 
@@ -212,29 +218,13 @@ async function loadHist(){
         for (let i = 0; i < 3; i++) {
             const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${pair}&interval=${tf}&limit=1000&endTime=${endTime}`);
             const raw = await res.json();
-            const batch = raw.map(d => ({
-                time: Math.floor(d[0]/1000) + 10800, 
-                open: +d[1], high: +d[2], low: +d[3], close: +d[4],
-                volume: +d[5]
-            }));
+            const batch = raw.map(d => ({time: Math.floor(d[0]/1000) + 10800, open: +d[1], high: +d[2], low: +d[3], close: +d[4]}));
             allCandles = batch.concat(allCandles);
             endTime = raw[0][0] - 1;
         }
         candles = [...new Map(allCandles.map(item => [item.time, item])).values()].sort((a,b)=>a.time-b.time);
         
-        if (candles.length > 0) {
-            updatePrecision(candles[0].close);
-            cp = candles[candles.length - 1].close;
-            
-            // Binance'ten Gerçek 24s Açılış Fiyatını Çek
-            try {
-                const tRes = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${pair}`);
-                const tData = await tRes.json();
-                dailyOpen = +tData.openPrice;
-            } catch(e) { dailyOpen = candles[0].open; }
-            
-            updPrice({close: cp});
-        }
+        if (candles.length > 0) updatePrecision(candles[0].close);
         
         cS.setData(candles);
         cSt(true, 'ONLINE');
@@ -244,24 +234,20 @@ async function loadHist(){
     } catch(e) { sLog('HATA: ' + e.message); }
 }
 
-function handleWS(e){
-    lastWsMsgTime = Date.now();
-    const msg = JSON.parse(e.data);
-    const data = msg.data || msg;
-    if (data.p || data.c || data.P) {
-        cp = +(data.p || data.c || data.P);
-        updPrice({close: cp});
-    }
-    if(isHistLoaded) handleData(data);
-}
-
 function startWS(){
     if(ws){ws.onclose=null;ws.close();}
     const wsUrl=`wss://fstream.binance.com/stream?streams=${pair.toLowerCase()}@kline_${tf}/${pair.toLowerCase()}@markPrice@1s`;
     ws=new WebSocket(wsUrl);
     ws.onmessage=handleWS;
-    ws.onopen=()=>{ cSt(true, "LIVE ONLINE"); };
-    ws.onerror=()=>{ setTimeout(startWS, 3000); };
+}
+
+function handleWS(e){
+    lastWsMsgTime = Date.now();
+    document.getElementById('dataSource').innerText = 'KAYNAK: WEBSOCKET';
+    const msg = JSON.parse(e.data);
+    const data = msg.data || msg;
+    if (data.p || data.c || data.P) cp = +(data.p || data.c || data.P);
+    if(isHistLoaded) handleData(data);
 }
 
 function handleData(d) {
@@ -273,12 +259,16 @@ function handleData(d) {
 
     if (d.p || d.c || d.P) {
         const price = +(d.p || d.c || d.P);
+        cp = price;
+        const lt = document.getElementById('liveTick');
+        if(lt) { lt.style.display = 'block'; lt.innerText = 'CANLI: $' + price.toFixed(currentPrecision); }
         if (candles.length > 0) {
             let last = candles[candles.length - 1];
             if (current_candle_time > last.time) {
                 const newC = { time: current_candle_time, open: price, high: price, low: price, close: price };
                 candles.push(newC);
                 candleData = newC;
+                d.newCandle = true;
             } else {
                 if (price > last.high) last.high = price;
                 if (price < last.low) last.low = price;
@@ -289,43 +279,27 @@ function handleData(d) {
     } 
     if (d.e === 'kline' || d.k) {
         const k = d.k || d;
-        const c = { 
-            time: Math.floor(k.t/1000) + 10800, 
-            open: +k.o, high: +k.h, low: +k.l, close: +k.c,
-            volume: +k.v
-        };
+        const c = { time: Math.floor(k.t/1000) + 10800, open: +k.o, high: +k.h, low: +k.l, close: +k.c };
         if(candles.length > 0){
             let last = candles[candles.length-1];
             if(last.time === c.time) { candles[candles.length-1] = c; }
-            else if (c.time > last.time) { candles.push(c); }
+            else if (c.time > last.time) { candles.push(c); d.newCandle = true; }
         } else { candles.push(c); }
         candleData = c;
     }
     if (candleData && cS) {
         cS.update(candleData);
+        updPrice(candleData);
         updPnl();
         calcInd();
+        if (d.newCandle) chart.timeScale().scrollToRealTime();
     }
 }
 
-let dailyOpen = 0, entryLine = null;
 function updPrice(c){
-    if(!c || !c.close) return;
+    if(!c) return;
     const el = document.getElementById('sP');
-    if(el) {
-        el.innerText = '$' + c.close.toFixed(currentPrecision);
-        el.style.display = 'block';
-    }
-    
-    const sc = document.getElementById('sC');
-    if(sc && dailyOpen > 0) {
-        const change = ((c.close - dailyOpen) / dailyOpen) * 100;
-        sc.innerText = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
-        sc.style.color = change >= 0 ? 'var(--green)' : 'var(--red)';
-    }
-    
-    const lt = document.getElementById('liveTick');
-    if(lt) { lt.style.display = 'block'; lt.innerText = 'CANLI: $' + c.close.toFixed(currentPrecision); }
+    if(el) el.innerText = '$' + c.close.toFixed(currentPrecision);
 }
 
 // ─── INDICATORS ───
@@ -377,66 +351,6 @@ function kReg(data, h, a) {
 
 let markers = [];
 let lastSignalTime = 0;
-let lastCalcTime = 0;
-function calcVMA(data, length) {
-    const vma = new Array(data.length).fill(null);
-    let sum = 0;
-    for (let i = 0; i < data.length; i++) {
-        sum += data[i].volume || 0;
-        if (i >= length) sum -= data[i - length].volume || 0;
-        if (i >= length - 1) vma[i] = sum / length;
-    }
-    return vma;
-}
-
-function calcADX(data, length) {
-    const adx = new Array(data.length).fill(null);
-    if (data.length < length * 2) return adx;
-    
-    let tr = [], dmPlus = [], dmMinus = [];
-    for (let i = 1; i < data.length; i++) {
-        const h = data[i].high, l = data[i].low, ph = data[i-1].high, pl = data[i-1].low, pc = data[i-1].close;
-        tr.push(Math.max(h - l, Math.abs(h - pc), Math.abs(l - pc)));
-        dmPlus.push(h - ph > pl - l ? Math.max(h - ph, 0) : 0);
-        dmMinus.push(pl - l > h - ph ? Math.max(pl - l, 0) : 0);
-    }
-    
-    const rmaTR = calcRMA(tr, length);
-    const rmaDP = calcRMA(dmPlus, length);
-    const rmaDM = calcRMA(dmMinus, length);
-    
-    const dx = rmaTR.map((t, i) => {
-        if (!t) return null;
-        const diP = (rmaDP[i] / t) * 100;
-        const diM = (rmaDM[i] / t) * 100;
-        return Math.abs(diP - diM) / (diP + diM) * 100;
-    });
-    
-    let sum = 0, count = 0;
-    for (let i = 0; i < dx.length; i++) {
-        if (dx[i] !== null) {
-            sum += dx[i]; count++;
-            if (count === length) adx[i + 1] = sum / length;
-            else if (count > length) adx[i + 1] = (adx[i] * (length - 1) + dx[i]) / length;
-        }
-    }
-    return adx;
-}
-
-function calcStdDev(data, length) {
-    const dev = new Array(data.length).fill(null);
-    for (let i = length - 1; i < data.length; i++) {
-        let sum = 0, sumSq = 0;
-        for (let j = 0; j < length; j++) {
-            const val = data[i - j];
-            sum += val; sumSq += val * val;
-        }
-        const avg = sum / length;
-        dev[i] = Math.sqrt(sumSq / length - avg * avg);
-    }
-    return dev;
-}
-
 function calcEMA(data, length) {
     const ema = new Array(data.length).fill(null);
     if (data.length < length) return ema;
@@ -481,10 +395,7 @@ function calcInd() {
         const rsiWhite = calcRSI(closes, r1Len);
         const rsiBlue = calcRSI(closes, r2Len);
         const atr = calcATR(candles, 60);
-        const ema100 = calcEMA(closes, 100);
-        const vma20 = calcVMA(candles, 20);
-        const kStd = calcStdDev(kernel, 20);
-        const adx = calcADX(candles, 14); // Yatay piyasa filtresi
+        const ema100 = calcEMA(closes, 100); // Ana Trend Filtresi
 
         const kPoints = [], r1Points = [], r2Points = [];
         for (let i = 0; i < candles.length; i++) {
@@ -509,83 +420,67 @@ function calcInd() {
         const alg2 = document.getElementById('alg2E').checked;
 
         if (alg1 || alg2) {
-            // Yeterli veri onayı (En az 100 mum)
-            for (let j = 20; j < candles.length; j++) {
+            for (let j = 3; j < candles.length; j++) {
                 const candle = candles[j];
-                const cRsiB = rsiBlue[j], cRsiW = rsiWhite[j];
                 const pRsiB = rsiBlue[j-1], pRsiW = rsiWhite[j-1];
+                const cRsiB = rsiBlue[j], cRsiW = rsiWhite[j];
                 const kVal = kernel[j];
+                
                 const kDiff = kernel[j] - kernel[j-1];
+                const pkDiff = kernel[j-1] - kernel[j-2];
+                const ppkDiff = kernel[j-2] - kernel[j-3]; // 3 Mum Onayı
                 
-                // --- SİSTEMATİK KATMANLAR V4.1 (KALİBRE EDİLMİŞ) ---
+                const rsiWSlope = rsiWhite[j] - rsiWhite[j-1];
+                const volFilter = atr[j] ? atr[j] * 1.0 : 0; // Gürültü Filtresi (1.0 ATR)
+                const currentEma = ema100[j];
                 
-                // Katman 0: Piyasa Rejimi (ADX > 15 ise Trend başlangıcı kabul edilir)
-                const isTrending = adx[j] > 15;
-                
-                // Katman 1: Trend Gücü (EMA + Kernel Slope + Slope Magnitude)
-                const slopeThreshold = candle.close * 0.0001; // Eğim eşiği biraz esnetildi
-                const isBullish = candle.close > (ema100[j] || 0) && kDiff > slopeThreshold;
-                const isBearish = candle.close < (ema100[j] || 999999) && kDiff < -slopeThreshold;
-                
-                // Katman 2: Kararlılık (Son 3 mum aynı yönde olmalı - 5'ten 3'e çekildi)
-                let stableCount = 0;
-                for(let m=0; m<3; m++) if(j-m > 0 && (kDiff > 0 ? kernel[j-m] > kernel[j-m-1] : kernel[j-m] < kernel[j-m-1])) stableCount++;
-                const isStable = stableCount >= 3;
-
-                // Katman 3: Hacim Onayı (Current Vol > VMA * 1.1)
-                const volOk = candle.volume > (vma20[j] * 1.1);
-                
-                // Katman 4: Momentum (RSI)
-                const rsiBuyOk = cRsiB > cRsiW && pRsiB <= pRsiW && cRsiB > 45;
-                const rsiSellOk = cRsiB < cRsiW && pRsiB >= pRsiW && cRsiB < 55;
-
                 let rawSig = null;
                 let algName = "";
-                let confidence = 0;
-
-                if (alg1 && isTrending && isStable) {
-                    // LONG GÜVEN SKORU
-                    let score = 0;
-                    if (isBullish) score += 40;
-                    if (rsiBuyOk) score += 30;
-                    if (volOk) score += 20;
-                    if (Math.abs(candle.close - kVal) > (atr[j] * 0.3)) score += 10;
-
-                    if (score >= 65) { rawSig = 'BUY'; algName = 'ELITE-V4'; confidence = score; }
-                    
-                    // SHORT GÜVEN SKORU
-                    let sScore = 0;
-                    if (isBearish) sScore += 40;
-                    if (rsiSellOk) sScore += 30;
-                    if (volOk) sScore += 20;
-                    if (Math.abs(candle.close - kVal) > (atr[j] * 0.3)) sScore += 10;
-
-                    if (sScore >= 65) { rawSig = 'SELL'; algName = 'ELITE-V4'; confidence = sScore; }
+                
+                // ALGORİTMA 1 PRO V3 (SİSTEMATİK)
+                if (alg1) {
+                    // BUY: EMA 100 Üstü + Kernel (3 mum) + RSI + ATR Kırılımı
+                    if (currentEma && candle.close > currentEma && kDiff > 0 && pkDiff > 0 && ppkDiff > 0 && cRsiB > cRsiW && pRsiB <= pRsiW && rsiWSlope >= 0 && candle.close > (kVal + volFilter) && candle.close > candle.open) { 
+                        rawSig = 'BUY'; algName = 'ALG-1'; 
+                    }
+                    // SELL: EMA 100 Altı + Kernel (3 mum) + RSI + ATR Kırılımı
+                    else if (currentEma && candle.close < currentEma && kDiff < 0 && pkDiff < 0 && ppkDiff < 0 && cRsiB < cRsiW && pRsiB >= pRsiW && rsiWSlope <= 0 && candle.close < (kVal - volFilter) && candle.close < candle.open) { 
+                        rawSig = 'SELL'; algName = 'ALG-1'; 
+                    }
                 }
-
-                // SİNYAL ONAYI VE MESAFE (10 Mum)
+                
+                // ALGORİTMA 2 PRO V3 (SİSTEMATİK)
+                if (!rawSig && alg2) {
+                    if (kDiff > 0 && pkDiff > 0 && candle.close < kVal && cRsiB > 40 && pRsiB <= 40 && candle.close > candle.open && rsiWSlope >= 0) { 
+                        rawSig = 'BUY'; algName = 'ALG-2'; 
+                    }
+                    else if (kDiff < 0 && pkDiff < 0 && candle.close > kVal && cRsiB < 60 && pRsiB >= 60 && candle.close < candle.open && rsiWSlope <= 0) { 
+                        rawSig = 'SELL'; algName = 'ALG-2'; 
+                    }
+                }
+                
+                // SİNYAL ONAYI VE MESAFE FİLTRESİ (10 Mum)
                 if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 10) {
                     lastSigType = rawSig;
                     lastSigIndex = j;
                     
-                    const color = rawSig === 'BUY' ? '#00ffcc' : '#ff0055';
+                    const color = rawSig === 'BUY' ? '#00ff41' : '#ff3131';
                     newMarkers.push({
                         time: candle.time,
                         position: rawSig === 'BUY' ? 'belowBar' : 'aboveBar',
                         color: color,
                         shape: rawSig === 'BUY' ? 'arrowUp' : 'arrowDown',
-                        text: rawSig === 'BUY' ? '[ BUY ]' : '[ SELL ]',
-                        size: 3
+                        text: rawSig === 'BUY' ? 'AL' : 'SAT',
+                        size: 3 
                     });
                     
                     if (j >= candles.length - 50) {
                         const timeStr = new Date(candle.time * 1000).toLocaleTimeString('tr-TR');
-                        newLogs.unshift(`<div class="log-row" style="color:${color}; border-left: 4px solid ${color}; background:rgba(255,255,255,0.02)">
-                            <span style="color:#aaa; font-size:0.65rem">[${timeStr}]</span>
-                            <span style="font-weight:bold; color:#fff; letter-spacing:1px">${algName}</span>
-                            <span style="font-weight:800">${rawSig === 'BUY' ? '▲ ALIM' : '▼ SATIŞ'}</span>
-                            <span style="color:${color}; opacity:0.8; font-size:0.7rem">GÜVEN: ${confidence}%</span>
-                            <span style="margin-left:auto">$${candle.close.toFixed(currentPrecision)}</span>
+                        newLogs.unshift(`<div class="log-row" style="color:${color}">
+                            <span>[${timeStr}]</span>
+                            <span style="font-weight:bold">${algName}</span>
+                            <span>${rawSig === 'BUY' ? 'ALIM' : 'SATIŞ'}</span>
+                            <span>$${candle.close.toFixed(currentPrecision)}</span>
                         </div>`);
                     }
                 }
@@ -613,76 +508,33 @@ function updPnl(){
         el.style.color=pnl>=0?'#00ff41':'#ff0000';
     }
 }
-// ─── TRADING ───
-function updPnl(){
-    if(!pos || cp === 0) return;
-    const pnl = pos.t === 'BUY' ? (cp - pos.e) * pos.a : (pos.e - cp) * pos.a;
-    const el = document.getElementById('pV');
-    if(el) {
-        el.innerText = (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2);
-        el.style.color = pnl >= 0 ? 'var(--green)' : 'var(--red)';
-    }
-}
 function openP(t){
-    if(pos) { sLog('ZATEN AÇIK POZİSYON VAR!'); return; }
-    if(cp === 0) { sLog('FİYAT BEKLENİYOR...'); return; }
-    
-    pos = { t: t, e: cp, a: bal / cp };
-    trd++;
-    
-    // Grafikte İşlem Çizgisi Oluştur
-    if(entryLine) cS.removePriceLine(entryLine);
-    entryLine = cS.createPriceLine({
-        price: cp,
-        color: t === 'BUY' ? '#00ffcc' : '#ff0055',
-        lineWidth: 2,
-        lineStyle: LightweightCharts.LineStyle.Dotted,
-        axisLabelVisible: true,
-        title: t + ' @ ' + cp.toFixed(currentPrecision),
-    });
-
-    document.getElementById('tC').innerText = trd;
-    const clB = document.getElementById('clB');
-    if(clB) {
-        clB.style.display = 'block';
-        clB.innerText = t + ' POZİSYONU KAPAT';
-    }
-    
-    document.getElementById('sL').innerText = "İŞLEM AÇILDI: " + t;
-    sLog('POZİSYON AÇILDI: ' + t + ' @ ' + cp.toFixed(currentPrecision));
-    updPnl();
+    if(pos||cp===0)return;
+    pos={t,e:cp,a:bal/cp}; trd++;
+    document.getElementById('tC').innerText=trd;
+    document.getElementById('clB').style.display='block';
+    document.getElementById('clB').innerText=t+' KAPAT';
+    sLog('POZ AÇILDI: '+t+' @ '+cp);
 }
 function closeP(){
-    if(!pos) return;
-    const pnl = pos.t === 'BUY' ? (cp - pos.e) * pos.a : (pos.e - cp) * pos.a;
-    bal += pnl;
-    pnlT += pnl;
-    
-    // Çizgiyi Kaldır
-    if(entryLine) { cS.removePriceLine(entryLine); entryLine = null; }
-
-    document.getElementById('bV').innerText = '$' + bal.toFixed(2);
-    const ps = document.getElementById('pS');
+    if(!pos)return;
+    const pnl=pos.t==='BUY'?(cp-pos.e)*pos.a:(pos.e-cp)*pos.a;
+    bal+=pnl; pnlT+=pnl;
+    document.getElementById('bV').innerText='$'+bal.toFixed(2);
+    const ps=document.getElementById('pS');
     if(ps) {
-        ps.innerText = (pnlT >= 0 ? '+' : '') + '$' + pnlT.toFixed(2);
-        ps.style.color = pnlT >= 0 ? 'var(--green)' : 'var(--red)';
+        ps.innerText=(pnlT>=0?'+':'')+'$'+pnlT.toFixed(2);
+        ps.style.color=pnlT>=0?'#00ff41':'#ff0000';
     }
-    
-    const pV = document.getElementById('pV');
-    if(pV) { pV.innerText = '$0.00'; pV.style.color = '#fff'; }
-    
-    sLog('POZİSYON KAPANDI. PNL: ' + pnl.toFixed(2));
-    pos = null;
-    document.getElementById('clB').style.display = 'none';
-    document.getElementById('sL').innerText = "İŞLEM KAPATILDI";
+    document.getElementById('pV').innerText='$0.00';
+    document.getElementById('pV').style.color='#fff';
+    pos=null; document.getElementById('clB').style.display='none';
+    sLog('POZ KAPANDI. PNL: '+pnl.toFixed(2));
 }
 
 function swP(p){
-    if (pair === p) return;
     pair=p; document.getElementById('sN').innerText=p; buildP();
-    isHistLoaded = false;
     candles=[]; cS.setData([]); kernelSeries.setData([]); r1S.setData([]); r2S.setData([]);
-    cS.setMarkers([]);
     loadHist(); startWS();
 }
 
