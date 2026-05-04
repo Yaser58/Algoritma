@@ -351,25 +351,22 @@ function kReg(data, h, a) {
 
 let markers = [];
 let lastSignalTime = 0;
-function drawSignal(type, time, price, algName = "ALG-1") {
-    const color = type === 'BUY' ? '#00ff41' : '#ff3131';
-    markers.push({
-        time: time,
-        position: type === 'BUY' ? 'belowBar' : 'aboveBar',
-        color: color,
-        shape: type === 'BUY' ? 'arrowUp' : 'arrowDown',
-        text: type === 'BUY' ? 'L' : 'S',
-        size: 1
+function calcATR(data, length) {
+    const tr = data.map((c, i) => {
+        if (i === 0) return c.high - c.low;
+        return Math.max(c.high - c.low, Math.abs(c.high - data[i-1].close), Math.abs(c.low - data[i-1].close));
     });
-    cS.setMarkers(markers);
-    const log = document.getElementById('lL');
-    const timeStr = new Date(time * 1000).toLocaleTimeString('tr-TR');
-    log.innerHTML = `<div class="log-row" style="color:${color}">
-        <span>[${timeStr}]</span>
-        <span style="font-weight:bold">${algName}</span>
-        <span>${type}</span>
-        <span>$${price.toFixed(2)}</span>
-    </div>` + log.innerHTML;
+    const rma = new Array(tr.length).fill(null);
+    let sum = 0;
+    for (let i = 0; i < tr.length; i++) {
+        if (i < length) {
+            sum += tr[i];
+            if (i === length - 1) rma[i] = sum / length;
+        } else {
+            rma[i] = (tr[i] + rma[i-1] * (length - 1)) / length;
+        }
+    }
+    return rma;
 }
 
 function calcInd() {
@@ -384,6 +381,7 @@ function calcInd() {
         const kernel = kReg(closes, h, a);
         const rsiWhite = calcRSI(closes, r1Len);
         const rsiBlue = calcRSI(closes, r2Len);
+        const atr = calcATR(candles, 60); // Volatilite eşiği için ATR
 
         const kPoints = [], r1Points = [], r2Points = [];
         for (let i = 0; i < candles.length; i++) {
@@ -402,7 +400,7 @@ function calcInd() {
         let newMarkers = [];
         let newLogs = [];
         let lastSigType = null; // Sinyal durum takibi (AL -> SAT -> AL)
-        let lastSigIndex = -10; // Sinyaller arası mesafe filtresi (Minimum 5 mum)
+        let lastSigIndex = -10; // Sinyaller arası mesafe filtresi (Minimum 8 mum)
 
         const alg1 = document.getElementById('alg1E').checked;
         const alg2 = document.getElementById('alg2E').checked;
@@ -410,31 +408,30 @@ function calcInd() {
         if (alg1 || alg2) {
             for (let j = 2; j < candles.length; j++) {
                 const candle = candles[j];
-                const prevCandle = candles[j-1];
                 const pRsiB = rsiBlue[j-1], pRsiW = rsiWhite[j-1];
                 const cRsiB = rsiBlue[j], cRsiW = rsiWhite[j];
                 const kVal = kernel[j];
                 const kDiff = kernel[j] - kernel[j-1];
                 const pkDiff = kernel[j-1] - kernel[j-2];
                 const rsiWSlope = rsiWhite[j] - rsiWhite[j-1];
-                const kColor = kDiff > 0 ? '#ffffff' : '#3153ff';
+                const volFilter = atr[j] ? atr[j] * 0.5 : 0; // Volatilite eşiği (0.5 ATR)
                 
                 let rawSig = null;
                 let algName = "";
                 
-                // ALGORİTMA 1 PRO: TREND + MOMENTUM + ONALILAR
+                // ALGORİTMA 1 PRO V2: TREND + MOMENTUM + VOLATİLİTE ONAYI
                 if (alg1) {
-                    // BUY: Kernel Yükselen + RSI Kesişimi + Yavaş RSI Trendi + Fiyat Onayı
-                    if (kDiff > 0 && pkDiff > 0 && cRsiB > cRsiW && pRsiB <= pRsiW && rsiWSlope >= 0 && candle.close > kVal && candle.close > candle.open) { 
+                    // BUY: Kernel + RSI + Yavaş RSI + ATR Breakout
+                    if (kDiff > 0 && pkDiff > 0 && cRsiB > cRsiW && pRsiB <= pRsiW && rsiWSlope >= 0 && candle.close > (kVal + volFilter) && candle.close > candle.open) { 
                         rawSig = 'BUY'; algName = 'ALG-1'; 
                     }
-                    // SELL: Kernel Düşen + RSI Kesişimi + Yavaş RSI Trendi + Fiyat Onayı
-                    else if (kDiff < 0 && pkDiff < 0 && cRsiB < cRsiW && pRsiB >= pRsiW && rsiWSlope <= 0 && candle.close < kVal && candle.close < candle.open) { 
+                    // SELL: Kernel + RSI + Yavaş RSI + ATR Breakout
+                    else if (kDiff < 0 && pkDiff < 0 && cRsiB < cRsiW && pRsiB >= pRsiW && rsiWSlope <= 0 && candle.close < (kVal - volFilter) && candle.close < candle.open) { 
                         rawSig = 'SELL'; algName = 'ALG-1'; 
                     }
                 }
                 
-                // ALGORİTMA 2 PRO: TREND-BACK + MOMENTUM
+                // ALGORİTMA 2 PRO V2: TREND-BACK + MOMENTUM
                 if (!rawSig && alg2) {
                     if (kDiff > 0 && candle.close < kVal && cRsiB > 40 && pRsiB <= 40 && candle.close > candle.open && rsiWSlope >= 0) { 
                         rawSig = 'BUY'; algName = 'ALG-2'; 
@@ -446,8 +443,8 @@ function calcInd() {
                 
                 // SİNYAL ONAYI VE FAKE FİLTRESİ
                 // Filtre 1: Farklı yön olmalı (AL -> SAT)
-                // Filtre 2: Son sinyal üzerinden en az 5 mum geçmiş olmalı (Mesafe Filtresi)
-                if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 5) {
+                // Filtre 2: Son sinyal üzerinden en az 8 mum geçmiş olmalı (Mesafe Filtresi)
+                if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 8) {
                     lastSigType = rawSig;
                     lastSigIndex = j;
                     
