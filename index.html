@@ -247,63 +247,54 @@ async function loadHist(){
 function handleWS(e){
     try {
         lastWsMsgTime = Date.now();
-        document.getElementById('dataSource').innerText = 'KAYNAK: WEBSOCKET';
         const msg = JSON.parse(e.data);
-        const data = msg.data || msg;
+        const k = msg.k || msg;
         
-        if (data.p || data.c || data.P || (data.k ? data.k.c : 0)) {
-            cp = +(data.p || data.c || data.P || (data.k ? data.k.c : 0));
+        if (k && (k.c || k.p)) {
+            const price = +(k.c || k.p);
+            cp = price;
             updPrice({close: cp});
-        }
-        
-        if(isHistLoaded) {
-            handleData(data.k || data);
+            
+            // Veriyi anında grafiğe bas
+            handleData(k);
         }
     } catch(err) { console.error("WS Error:", err); }
 }
 
 function startWS(){
     if(ws){ws.onclose=null;ws.onerror=null;ws.close();}
-    const wsUrl=`wss://fstream.binance.com/stream?streams=${pair.toLowerCase()}@kline_${tf}/${pair.toLowerCase()}@markPrice@1s`;
+    // En stabil canlı mum akışı (Direct Kline Stream)
+    const wsUrl=`wss://fstream.binance.com/ws/${pair.toLowerCase()}@kline_${tf}`;
     ws=new WebSocket(wsUrl);
     ws.onmessage=handleWS;
-    ws.onerror=(e)=>{ sLog("WS BAĞLANTI HATASI!"); cSt(false, "RECONNECTING..."); setTimeout(startWS, 5000); };
+    ws.onopen=()=>{ cSt(true, "LIVE ONLINE"); };
+    ws.onerror=(e)=>{ sLog("WS HATASI, TEKRAR BAĞLANIYOR..."); setTimeout(startWS, 3000); };
 }
 
-function handleData(d) {
+function handleData(k) {
     try {
-        let c = null;
-        const k = d.k || d;
-        if (k.t || k.o) {
-            c = { 
-                time: Math.floor(k.t/1000), 
-                open: +k.o, high: +k.h, low: +k.l, close: +k.c,
-                volume: +k.v 
-            };
-        } else if (d.p || d.c) {
-            const price = +(d.p || d.c || d.P);
-            if (candles.length > 0) {
-                let last = candles[candles.length - 1];
-                last.close = price;
-                if (price > last.high) last.high = price;
-                if (price < last.low) last.low = price;
-                c = last;
-            }
-        }
+        if (!k || (!k.t && !k.T)) return;
+        
+        const c = { 
+            time: Math.floor(k.t/1000), 
+            open: +k.o, high: +k.h, low: +k.l, close: +k.c,
+            volume: +k.v 
+        };
 
-        if (c && cS) {
+        if (cS) {
+            cS.update(c);
+            
+            // Candles dizisini güncelle (Indikatörler için)
             if (candles.length > 0) {
                 let last = candles[candles.length - 1];
                 if (c.time === last.time) candles[candles.length - 1] = c;
                 else if (c.time > last.time) {
                     candles.push(c);
-                    chart.timeScale().scrollToRealTime(); // Yeni mumda kaydır
+                    chart.timeScale().scrollToRealTime();
                 }
             }
             
-            cS.update(c);
             updPnl();
-            
             const nowMs = Date.now();
             if (nowMs - lastCalcTime > 2000) {
                 calcInd();
