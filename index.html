@@ -80,14 +80,14 @@
             <div class="sL">SİNYAL AYARLARI</div>
             <div style="display:flex;gap:10px;margin-bottom:10px">
                 <label class="sw">
-                    <input type="checkbox" id="alg1E">
+                    <input type="checkbox" id="alg1E" checked>
                     <span class="slid"></span>
                 </label>
                 <span style="font-size:0.7rem;color:var(--dim)">ALGORİTMA 1 (KERNEL+HACİM)</span>
             </div>
             <div style="display:flex;gap:10px">
                 <label class="sw">
-                    <input type="checkbox" id="alg2E">
+                    <input type="checkbox" id="alg2E" checked>
                     <span class="slid"></span>
                 </label>
                 <span style="font-size:0.7rem;color:var(--dim)">ALGORİTMA 2 (TREND-BACK)</span>
@@ -139,6 +139,28 @@ let bal=100,pnlT=0,trd=0,pos=null,cp=0;
 let isHistLoaded = false;
 let hbCount = 0;
 let lastWsMsgTime = 0;
+let currentPrecision = 2;
+
+function updatePrecision(price) {
+    if (!price) return;
+    let p = 2, m = 0.01;
+    if (price < 0.00001) { p = 8; m = 0.00000001; }
+    else if (price < 0.001) { p = 6; m = 0.000001; }
+    else if (price < 0.1) { p = 5; m = 0.00001; }
+    else if (price < 1) { p = 4; m = 0.0001; }
+    else if (price < 10) { p = 3; m = 0.001; }
+    else if (price < 1000) { p = 2; m = 0.01; }
+    else { p = 2; m = 0.01; }
+    
+    currentPrecision = p;
+    
+    cS.applyOptions({
+        priceFormat: { type: 'price', precision: p, minMove: m }
+    });
+    kernelSeries.applyOptions({
+        priceFormat: { type: 'price', precision: p, minMove: m }
+    });
+}
 
 function sLog(m){
     const e=document.getElementById('sL');
@@ -201,10 +223,14 @@ async function loadHist(){
             endTime = raw[0][0] - 1;
         }
         candles = [...new Map(allCandles.map(item => [item.time, item])).values()].sort((a,b)=>a.time-b.time);
+        
+        if (candles.length > 0) updatePrecision(candles[0].close);
+        
         cS.setData(candles);
         cSt(true, 'ONLINE');
         isHistLoaded = true;
         calcInd();
+        setTimeout(() => chart.timeScale().fitContent(), 50);
     } catch(e) { sLog('HATA: ' + e.message); }
 }
 
@@ -235,7 +261,7 @@ function handleData(d) {
         const price = +(d.p || d.c || d.P);
         cp = price;
         const lt = document.getElementById('liveTick');
-        if(lt) { lt.style.display = 'block'; lt.innerText = 'CANLI: $' + price.toLocaleString(); }
+        if(lt) { lt.style.display = 'block'; lt.innerText = 'CANLI: $' + price.toFixed(currentPrecision); }
         if (candles.length > 0) {
             let last = candles[candles.length - 1];
             if (current_candle_time > last.time) {
@@ -273,7 +299,7 @@ function handleData(d) {
 function updPrice(c){
     if(!c) return;
     const el = document.getElementById('sP');
-    if(el) el.innerText = c.close.toLocaleString();
+    if(el) el.innerText = '$' + c.close.toFixed(currentPrecision);
 }
 
 // ─── INDICATORS ───
@@ -373,54 +399,63 @@ function calcInd() {
         r1S.setData(r1Points);
         r2S.setData(r2Points);
 
-        // ALGORİTMA 1: KESİŞİM STRATEJİSİ
-        if (document.getElementById('alg1E').checked) {
-            const i = candles.length - 1;
-            if (i < 2) return;
-            const lastCandle = candles[i-1];
-            if (lastCandle.time <= lastSignalTime) {
-                // Aynı mumda farklı algoritmadan sinyal gelebilir, o yüzden sadece zaman değil algoritma bazlı da bakılabilir
-            } else {
-                const kColor = kPoints.find(p => p.time === lastCandle.time)?.color;
-                const pRsiB = rsiBlue[i-2], pRsiW = rsiWhite[i-2];
-                const cRsiB = rsiBlue[i-1], cRsiW = rsiWhite[i-1];
+        let newMarkers = [];
+        let newLogs = [];
+        const alg1 = document.getElementById('alg1E').checked;
+        const alg2 = document.getElementById('alg2E').checked;
 
-                if (kColor === '#ffffff' && cRsiB > cRsiW && pRsiB <= pRsiW) {
-                    drawSignal('BUY', lastCandle.time, lastCandle.close, "ALG-1");
-                    lastSignalTime = lastCandle.time;
-                } else if (kColor === '#3153ff' && cRsiB < cRsiW && pRsiB >= pRsiW) {
-                    drawSignal('SELL', lastCandle.time, lastCandle.close, "ALG-1");
-                    lastSignalTime = lastCandle.time;
+        if (alg1 || alg2) {
+            for (let j = 2; j < candles.length; j++) {
+                const candle = candles[j];
+                const pRsiB = rsiBlue[j-1], pRsiW = rsiWhite[j-1];
+                const cRsiB = rsiBlue[j], cRsiW = rsiWhite[j];
+                const kVal = kernel[j];
+                const kColor = (j > 0 && kernel[j] > kernel[j-1]) ? '#ffffff' : '#3153ff';
+                
+                let sig = null;
+                let algName = "";
+                
+                if (alg1) {
+                    if (kColor === '#ffffff' && cRsiB > cRsiW && pRsiB <= pRsiW) { sig = 'BUY'; algName = 'ALG-1'; }
+                    else if (kColor === '#3153ff' && cRsiB < cRsiW && pRsiB >= pRsiW) { sig = 'SELL'; algName = 'ALG-1'; }
+                }
+                if (!sig && alg2) {
+                    if (kColor === '#ffffff' && candle.close < kVal && cRsiB > 40 && pRsiB <= 40) { sig = 'BUY'; algName = 'ALG-2'; }
+                    else if (kColor === '#3153ff' && candle.close > kVal && cRsiB < 60 && pRsiB >= 60) { sig = 'SELL'; algName = 'ALG-2'; }
+                }
+                
+                if (sig) {
+                    const color = sig === 'BUY' ? '#00ff41' : '#ff3131';
+                    newMarkers.push({
+                        time: candle.time,
+                        position: sig === 'BUY' ? 'belowBar' : 'aboveBar',
+                        color: color,
+                        shape: sig === 'BUY' ? 'arrowUp' : 'arrowDown',
+                        text: sig === 'BUY' ? 'L' : 'S',
+                        size: 1
+                    });
+                    
+                    if (j >= candles.length - 50) {
+                        const timeStr = new Date(candle.time * 1000).toLocaleTimeString('tr-TR');
+                        newLogs.unshift(`<div class="log-row" style="color:${color}">
+                            <span>[${timeStr}]</span>
+                            <span style="font-weight:bold">${algName}</span>
+                            <span>${sig}</span>
+                            <span>$${candle.close.toFixed(currentPrecision)}</span>
+                        </div>`);
+                    }
                 }
             }
         }
 
-        // ALGORİTMA 2: TREND-BACK & MOMENTUM STRATEJİSİ
-        if (document.getElementById('alg2E').checked) {
-            const i = candles.length - 1;
-            if (i < 2) return;
-            const lastCandle = candles[i-1];
-            if (lastCandle.time <= lastSignalTime) return;
+        cS.setMarkers(newMarkers);
 
-            const kObj = kPoints.find(p => p.time === lastCandle.time);
-            if(!kObj) return;
-            
-            const kColor = kObj.color;
-            const kVal = kObj.value;
-            const pRsiB = rsiBlue[i-2];
-            const cRsiB = rsiBlue[i-1];
-
-            // BUY: Kernel Beyaz + Fiyat Kernel Altında + RSI 40'ı yukarı kesti
-            if (kColor === '#ffffff' && lastCandle.close < kVal && cRsiB > 40 && pRsiB <= 40) {
-                drawSignal('BUY', lastCandle.time, lastCandle.close, "ALG-2");
-                lastSignalTime = lastCandle.time;
-            }
-            // SELL: Kernel Mavi + Fiyat Kernel Üstünde + RSI 60'ı aşağı kesti
-            else if (kColor === '#3153ff' && lastCandle.close > kVal && cRsiB < 60 && pRsiB >= 60) {
-                drawSignal('SELL', lastCandle.time, lastCandle.close, "ALG-2");
-                lastSignalTime = lastCandle.time;
-            }
+        const logsHtml = newLogs.slice(0, 50).join('');
+        const logEl = document.getElementById('lL');
+        if (logEl.innerHTML !== logsHtml) {
+            logEl.innerHTML = logsHtml;
         }
+
     } catch(e) { console.error(e); }
 }
 
@@ -470,9 +505,9 @@ window.addEventListener('load', ()=>{
         tf = this.value; candles = []; cS.setData([]); isHistLoaded = false;
         loadHist(); startWS();
     };
-    ['kH','kA','rs1','rs2'].forEach(id => {
+    ['kH','kA','rs1','rs2', 'alg1E', 'alg2E'].forEach(id => {
         const el = document.getElementById(id);
-        if(el) el.onchange = calcInd;
+        if(el) el.addEventListener('change', calcInd);
     });
     loadHist(); startWS();
 });
