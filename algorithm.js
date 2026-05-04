@@ -2,7 +2,8 @@ let markers = [];
 let lastSignalTime = 0;
 
 /**
- * ELITE TRADING ENGINE - V3 (Premium Edition)
+ * ELITE TRADING ENGINE - V3 (Optimized)
+ * Performans iyileştirmesi: İndikatör hesaplamaları döngü dışına alındı.
  */
 function calcInd() {
     if (candles.length < 50) return;
@@ -13,12 +14,16 @@ function calcInd() {
         const r2Len = +document.getElementById('rs2').value;
 
         const closes = candles.map(c => c.close);
+        
+        // --- HESAPLAMALARI DÖNGÜ DIŞINDA BİR KEZ YAP (O(N) Optimizasyonu) ---
         const kernel = kReg(closes, h, a);
         const rsiWhite = calcRSI(closes, r1Len);
         const rsiBlue = calcRSI(closes, r2Len);
         const atr = calcATR(candles, 14); 
-        const emaRegime = calcEMA(closes, 200); 
+        const ema200 = calcEMA(closes, 200); 
+        const ema100 = calcEMA(closes, 100); // Alg-1 için önceden hesapla
 
+        // Grafik Verilerini Güncelle
         const kPoints = [], r1Points = [], r2Points = [];
         for (let i = 0; i < candles.length; i++) {
             const t = candles[i].time;
@@ -45,26 +50,26 @@ function calcInd() {
             const c = candles[j];
             const p = candles[j-1];
             const kVal = kernel[j];
-            const currentEma = emaRegime[j];
             
             let rawSig = null;
             let algName = "";
 
-            // --- ALGORİTMA 1: PRO-V3 ---
-            if (alg1Enabled && !rawSig) {
-                const ema100 = calcEMA(closes, 100)[j];
+            // --- ALGORİTMA 1 (PRO-V3) ---
+            if (alg1Enabled) {
+                const currentEma100 = ema100[j];
                 const kDiff = kernel[j] - kernel[j-1];
-                if (ema100 && c.close > ema100 && kDiff > 0 && rsiBlue[j] > rsiWhite[j] && c.close > c.open) {
+                if (currentEma100 && c.close > currentEma100 && kDiff > 0 && rsiBlue[j] > rsiWhite[j] && c.close > c.open) {
                     rawSig = 'BUY'; algName = 'ALG-1';
-                } else if (ema100 && c.close < ema100 && kDiff < 0 && rsiBlue[j] < rsiWhite[j] && c.close < c.open) {
+                } else if (currentEma100 && c.close < currentEma100 && kDiff < 0 && rsiBlue[j] < rsiWhite[j] && c.close < c.open) {
                     rawSig = 'SELL'; algName = 'ALG-1';
                 }
             }
 
-            // --- ALGORİTMA 2: QUANT-MASTER V3 ---
+            // --- ALGORİTMA 2 (QUANT-MASTER V3) ---
             if (alg2Enabled && !rawSig) {
-                const isBull = currentEma && c.close > currentEma;
-                const isBear = currentEma && c.close < currentEma;
+                const currentEma200 = ema200[j];
+                const isBull = currentEma200 && c.close > currentEma200;
+                const isBear = currentEma200 && c.close < currentEma200;
                 const kUp = kernel[j] > kernel[j-1] && kernel[j-1] > kernel[j-2];
                 const kDown = kernel[j] < kernel[j-1] && kernel[j-1] < kernel[j-2];
                 const isGreen = c.close > c.open;
@@ -78,11 +83,9 @@ function calcInd() {
                 }
             }
 
-            // --- PREMIUM GÖRSEL İNFAZ ---
             if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 10) {
                 lastSigType = rawSig;
                 lastSigIndex = j;
-                
                 const isBuy = rawSig === 'BUY';
                 const color = isBuy ? '#00ff41' : '#ff0000';
                 
@@ -91,8 +94,8 @@ function calcInd() {
                     position: isBuy ? 'belowBar' : 'aboveBar',
                     color: color,
                     shape: isBuy ? 'arrowUp' : 'arrowDown',
-                    text: isBuy ? 'LONG' : 'SHORT', // Daha profesyonel isimler
-                    size: 2 // İdeal "Elite" boyutu
+                    text: isBuy ? 'LONG' : 'SHORT',
+                    size: 2
                 });
                 
                 if (j >= candles.length - 50) {
@@ -111,5 +114,5 @@ function calcInd() {
         const logEl = document.getElementById('lL');
         if (logEl) logEl.innerHTML = newLogs.slice(0, 50).join('');
 
-    } catch(e) { console.error("Elite Engine Error:", e); }
+    } catch(e) { console.error("Optimization Error:", e); }
 }
