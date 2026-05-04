@@ -18,10 +18,7 @@ async function loadHist(){
         cSt(true, 'ONLINE');
         isHistLoaded = true;
         calcInd();
-        setTimeout(() => {
-            chart.timeScale().fitContent();
-            chart.timeScale().scrollToRealTime();
-        }, 100);
+        setTimeout(() => chart.timeScale().fitContent(), 50);
     } catch(e) { sLog('HATA: ' + e.message); }
 }
 
