@@ -401,38 +401,57 @@ function calcInd() {
 
         let newMarkers = [];
         let newLogs = [];
+        let lastSigType = null; // Sinyal durum takibi (AL -> SAT -> AL)
+
         const alg1 = document.getElementById('alg1E').checked;
         const alg2 = document.getElementById('alg2E').checked;
 
         if (alg1 || alg2) {
             for (let j = 2; j < candles.length; j++) {
                 const candle = candles[j];
+                const prevCandle = candles[j-1];
                 const pRsiB = rsiBlue[j-1], pRsiW = rsiWhite[j-1];
                 const cRsiB = rsiBlue[j], cRsiW = rsiWhite[j];
                 const kVal = kernel[j];
                 const kColor = (j > 0 && kernel[j] > kernel[j-1]) ? '#ffffff' : '#3153ff';
                 
-                let sig = null;
+                let rawSig = null;
                 let algName = "";
                 
+                // ALGORİTMA 1: KESİŞİM + TREND FİLTRESİ
                 if (alg1) {
-                    if (kColor === '#ffffff' && cRsiB > cRsiW && pRsiB <= pRsiW) { sig = 'BUY'; algName = 'ALG-1'; }
-                    else if (kColor === '#3153ff' && cRsiB < cRsiW && pRsiB >= pRsiW) { sig = 'SELL'; algName = 'ALG-1'; }
-                }
-                if (!sig && alg2) {
-                    if (kColor === '#ffffff' && candle.close < kVal && cRsiB > 40 && pRsiB <= 40) { sig = 'BUY'; algName = 'ALG-2'; }
-                    else if (kColor === '#3153ff' && candle.close > kVal && cRsiB < 60 && pRsiB >= 60) { sig = 'SELL'; algName = 'ALG-2'; }
+                    // BUY: Kernel Beyaz + RSI Kesişimi + Yeşil Mum Onayı
+                    if (kColor === '#ffffff' && cRsiB > cRsiW && pRsiB <= pRsiW && candle.close > candle.open) { 
+                        rawSig = 'BUY'; algName = 'ALG-1'; 
+                    }
+                    // SELL: Kernel Mavi + RSI Kesişimi + Kırmızı Mum Onayı
+                    else if (kColor === '#3153ff' && cRsiB < cRsiW && pRsiB >= pRsiW && candle.close < candle.open) { 
+                        rawSig = 'SELL'; algName = 'ALG-1'; 
+                    }
                 }
                 
-                if (sig) {
-                    const color = sig === 'BUY' ? '#00ff41' : '#ff3131';
+                // ALGORİTMA 2: TREND-BACK + MOMENTUM (Alg 1 sinyal vermediyse)
+                if (!rawSig && alg2) {
+                    if (kColor === '#ffffff' && candle.close < kVal && cRsiB > 40 && pRsiB <= 40 && candle.close > candle.open) { 
+                        rawSig = 'BUY'; algName = 'ALG-2'; 
+                    }
+                    else if (kColor === '#3153ff' && candle.close > kVal && cRsiB < 60 && pRsiB >= 60 && candle.close < candle.open) { 
+                        rawSig = 'SELL'; algName = 'ALG-2'; 
+                    }
+                }
+                
+                // SİNYAL ONAYI VE FAKE FİLTRESİ (Sadece değişen yönleri al: AL -> SAT)
+                if (rawSig && rawSig !== lastSigType) {
+                    lastSigType = rawSig;
+                    
+                    const color = rawSig === 'BUY' ? '#00ff41' : '#ff3131';
                     newMarkers.push({
                         time: candle.time,
-                        position: sig === 'BUY' ? 'belowBar' : 'aboveBar',
+                        position: rawSig === 'BUY' ? 'belowBar' : 'aboveBar',
                         color: color,
-                        shape: sig === 'BUY' ? 'arrowUp' : 'arrowDown',
-                        text: sig === 'BUY' ? 'L' : 'S',
-                        size: 1
+                        shape: rawSig === 'BUY' ? 'arrowUp' : 'arrowDown',
+                        text: rawSig === 'BUY' ? 'AL' : 'SAT',
+                        size: 3 // Maksimum görünürlük için boyut 3
                     });
                     
                     if (j >= candles.length - 50) {
@@ -440,7 +459,7 @@ function calcInd() {
                         newLogs.unshift(`<div class="log-row" style="color:${color}">
                             <span>[${timeStr}]</span>
                             <span style="font-weight:bold">${algName}</span>
-                            <span>${sig}</span>
+                            <span>${rawSig === 'BUY' ? 'ALIM' : 'SATIŞ'}</span>
                             <span>$${candle.close.toFixed(currentPrecision)}</span>
                         </div>`);
                     }
