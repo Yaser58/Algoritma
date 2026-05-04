@@ -244,68 +244,73 @@ async function loadHist(){
     } catch(e) { sLog('HATA: ' + e.message); }
 }
 
+function handleWS(e){
+    try {
+        lastWsMsgTime = Date.now();
+        document.getElementById('dataSource').innerText = 'KAYNAK: WEBSOCKET';
+        const msg = JSON.parse(e.data);
+        const data = msg.data || msg;
+        
+        if (data.p || data.c || data.P || (data.k ? data.k.c : 0)) {
+            cp = +(data.p || data.c || data.P || (data.k ? data.k.c : 0));
+            updPrice({close: cp});
+        }
+        
+        if(isHistLoaded) {
+            handleData(data.k || data);
+        }
+    } catch(err) { console.error("WS Error:", err); }
+}
+
 function startWS(){
-    if(ws){ws.onclose=null;ws.close();}
+    if(ws){ws.onclose=null;ws.onerror=null;ws.close();}
     const wsUrl=`wss://fstream.binance.com/stream?streams=${pair.toLowerCase()}@kline_${tf}/${pair.toLowerCase()}@markPrice@1s`;
     ws=new WebSocket(wsUrl);
     ws.onmessage=handleWS;
-}
-
-function handleWS(e){
-    lastWsMsgTime = Date.now();
-    document.getElementById('dataSource').innerText = 'KAYNAK: WEBSOCKET';
-    const msg = JSON.parse(e.data);
-    const data = msg.data || msg;
-    
-    if (data.p || data.c || data.P || (data.k ? data.k.c : 0)) {
-        cp = +(data.p || data.c || data.P || (data.k ? data.k.c : 0));
-        updPrice({close: cp});
-    }
-    
-    if(isHistLoaded) {
-        if (data.k) handleData(data.k);
-        else if (data.e === 'kline') handleData(data);
-        else if (data.p || data.c) handleData(data);
-    }
+    ws.onerror=(e)=>{ sLog("WS BAĞLANTI HATASI!"); cSt(false, "RECONNECTING..."); setTimeout(startWS, 5000); };
 }
 
 function handleData(d) {
-    let c = null;
-    if (d.t || d.k) {
+    try {
+        let c = null;
         const k = d.k || d;
-        c = { 
-            time: Math.floor(k.t/1000), 
-            open: +k.o, high: +k.h, low: +k.l, close: +k.c,
-            volume: +k.v 
-        };
-    } else if (d.p || d.c) {
-        const price = +(d.p || d.c || d.P);
-        if (candles.length > 0) {
-            let last = candles[candles.length - 1];
-            last.close = price;
-            if (price > last.high) last.high = price;
-            if (price < last.low) last.low = price;
-            c = last;
+        if (k.t || k.o) {
+            c = { 
+                time: Math.floor(k.t/1000), 
+                open: +k.o, high: +k.h, low: +k.l, close: +k.c,
+                volume: +k.v 
+            };
+        } else if (d.p || d.c) {
+            const price = +(d.p || d.c || d.P);
+            if (candles.length > 0) {
+                let last = candles[candles.length - 1];
+                last.close = price;
+                if (price > last.high) last.high = price;
+                if (price < last.low) last.low = price;
+                c = last;
+            }
         }
-    }
 
-    if (c && cS) {
-        // Candles dizisini güncelle
-        if (candles.length > 0) {
-            let last = candles[candles.length - 1];
-            if (c.time === last.time) candles[candles.length - 1] = c;
-            else if (c.time > last.time) candles.push(c);
+        if (c && cS) {
+            if (candles.length > 0) {
+                let last = candles[candles.length - 1];
+                if (c.time === last.time) candles[candles.length - 1] = c;
+                else if (c.time > last.time) {
+                    candles.push(c);
+                    chart.timeScale().scrollToRealTime(); // Yeni mumda kaydır
+                }
+            }
+            
+            cS.update(c);
+            updPnl();
+            
+            const nowMs = Date.now();
+            if (nowMs - lastCalcTime > 2000) {
+                calcInd();
+                lastCalcTime = nowMs;
+            }
         }
-        
-        cS.update(c);
-        updPnl();
-        
-        const nowMs = Date.now();
-        if (nowMs - lastCalcTime > 2000) {
-            calcInd();
-            lastCalcTime = nowMs;
-        }
-    }
+    } catch(err) { console.error("Data Error:", err); }
 }
 
 let dailyOpen = 0, entryLine = null;
