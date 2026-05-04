@@ -218,7 +218,11 @@ async function loadHist(){
         for (let i = 0; i < 3; i++) {
             const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${pair}&interval=${tf}&limit=1000&endTime=${endTime}`);
             const raw = await res.json();
-            const batch = raw.map(d => ({time: Math.floor(d[0]/1000) + 10800, open: +d[1], high: +d[2], low: +d[3], close: +d[4]}));
+            const batch = raw.map(d => ({
+                time: Math.floor(d[0]/1000) + 10800, 
+                open: +d[1], high: +d[2], low: +d[3], close: +d[4],
+                volume: +d[5] // Hacim eklendi
+            }));
             allCandles = batch.concat(allCandles);
             endTime = raw[0][0] - 1;
         }
@@ -279,7 +283,11 @@ function handleData(d) {
     } 
     if (d.e === 'kline' || d.k) {
         const k = d.k || d;
-        const c = { time: Math.floor(k.t/1000) + 10800, open: +k.o, high: +k.h, low: +k.l, close: +k.c };
+        const c = { 
+            time: Math.floor(k.t/1000) + 10800, 
+            open: +k.o, high: +k.h, low: +k.l, close: +k.c,
+            volume: +k.v // Hacim eklendi
+        };
         if(candles.length > 0){
             let last = candles[candles.length-1];
             if(last.time === c.time) { candles[candles.length-1] = c; }
@@ -351,6 +359,31 @@ function kReg(data, h, a) {
 
 let markers = [];
 let lastSignalTime = 0;
+function calcVMA(data, length) {
+    const vma = new Array(data.length).fill(null);
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+        sum += data[i].volume || 0;
+        if (i >= length) sum -= data[i - length].volume || 0;
+        if (i >= length - 1) vma[i] = sum / length;
+    }
+    return vma;
+}
+
+function calcStdDev(data, length) {
+    const dev = new Array(data.length).fill(null);
+    for (let i = length - 1; i < data.length; i++) {
+        let sum = 0, sumSq = 0;
+        for (let j = 0; j < length; j++) {
+            const val = data[i - j];
+            sum += val; sumSq += val * val;
+        }
+        const avg = sum / length;
+        dev[i] = Math.sqrt(sumSq / length - avg * avg);
+    }
+    return dev;
+}
+
 function calcEMA(data, length) {
     const ema = new Array(data.length).fill(null);
     if (data.length < length) return ema;
@@ -395,7 +428,9 @@ function calcInd() {
         const rsiWhite = calcRSI(closes, r1Len);
         const rsiBlue = calcRSI(closes, r2Len);
         const atr = calcATR(candles, 60);
-        const ema100 = calcEMA(closes, 100); // Ana Trend Filtresi
+        const ema100 = calcEMA(closes, 100);
+        const vma20 = calcVMA(candles, 20); // Hacim Ortalaması
+        const kStd = calcStdDev(kernel, 20); // Kernel Standart Sapma (Volatilite)
 
         const kPoints = [], r1Points = [], r2Points = [];
         for (let i = 0; i < candles.length; i++) {
@@ -420,47 +455,56 @@ function calcInd() {
         const alg2 = document.getElementById('alg2E').checked;
 
         if (alg1 || alg2) {
-            for (let j = 3; j < candles.length; j++) {
+            for (let j = 5; j < candles.length; j++) {
                 const candle = candles[j];
-                const pRsiB = rsiBlue[j-1], pRsiW = rsiWhite[j-1];
                 const cRsiB = rsiBlue[j], cRsiW = rsiWhite[j];
+                const pRsiB = rsiBlue[j-1], pRsiW = rsiWhite[j-1];
                 const kVal = kernel[j];
-                
                 const kDiff = kernel[j] - kernel[j-1];
-                const pkDiff = kernel[j-1] - kernel[j-2];
-                const ppkDiff = kernel[j-2] - kernel[j-3]; // 3 Mum Onayı
                 
-                const rsiWSlope = rsiWhite[j] - rsiWhite[j-1];
-                const volFilter = atr[j] ? atr[j] * 1.0 : 0; // Gürültü Filtresi (1.0 ATR)
-                const currentEma = ema100[j];
+                // --- SİSTEMATİK KATMANLAR ---
                 
+                // Katman 1: Trend Gücü (EMA + Kernel Slope)
+                const isBullish = candle.close > (ema100[j] || 0) && kDiff > 0;
+                const isBearish = candle.close < (ema100[j] || 999999) && kDiff < 0;
+                
+                // Katman 2: Hacim Onayı (Current Vol > VMA * 1.2)
+                const volOk = candle.volume > (vma20[j] * 1.2);
+                
+                // Katman 3: Volatilite Eşiği (Dinamik Z-Score / ATR)
+                const std = kStd[j] || 0;
+                const devOk = Math.abs(candle.close - kVal) > (std * 1.5 || atr[j]);
+
+                // Katman 4: Momentum Uyumu (RSI)
+                const rsiBuyOk = cRsiB > cRsiW && pRsiB <= pRsiW && cRsiB > 45;
+                const rsiSellOk = cRsiB < cRsiW && pRsiB >= pRsiW && cRsiB < 55;
+
                 let rawSig = null;
                 let algName = "";
-                
-                // ALGORİTMA 1 PRO V3 (SİSTEMATİK)
+                let confidence = 0;
+
                 if (alg1) {
-                    // BUY: EMA 100 Üstü + Kernel (3 mum) + RSI + ATR Kırılımı
-                    if (currentEma && candle.close > currentEma && kDiff > 0 && pkDiff > 0 && ppkDiff > 0 && cRsiB > cRsiW && pRsiB <= pRsiW && rsiWSlope >= 0 && candle.close > (kVal + volFilter) && candle.close > candle.open) { 
-                        rawSig = 'BUY'; algName = 'ALG-1'; 
-                    }
-                    // SELL: EMA 100 Altı + Kernel (3 mum) + RSI + ATR Kırılımı
-                    else if (currentEma && candle.close < currentEma && kDiff < 0 && pkDiff < 0 && ppkDiff < 0 && cRsiB < cRsiW && pRsiB >= pRsiW && rsiWSlope <= 0 && candle.close < (kVal - volFilter) && candle.close < candle.open) { 
-                        rawSig = 'SELL'; algName = 'ALG-1'; 
-                    }
+                    // LONG GÜVEN SKORU HESAPLAMA
+                    let score = 0;
+                    if (isBullish) score += 40;
+                    if (rsiBuyOk) score += 30;
+                    if (volOk) score += 20;
+                    if (devOk) score += 10;
+
+                    if (score >= 70) { rawSig = 'BUY'; algName = 'ELITE-S'; confidence = score; }
+                    
+                    // SHORT GÜVEN SKORU HESAPLAMA
+                    let sScore = 0;
+                    if (isBearish) sScore += 40;
+                    if (rsiSellOk) sScore += 30;
+                    if (volOk) sScore += 20;
+                    if (devOk) sScore += 10;
+
+                    if (sScore >= 70) { rawSig = 'SELL'; algName = 'ELITE-S'; confidence = sScore; }
                 }
-                
-                // ALGORİTMA 2 PRO V3 (SİSTEMATİK)
-                if (!rawSig && alg2) {
-                    if (kDiff > 0 && pkDiff > 0 && candle.close < kVal && cRsiB > 40 && pRsiB <= 40 && candle.close > candle.open && rsiWSlope >= 0) { 
-                        rawSig = 'BUY'; algName = 'ALG-2'; 
-                    }
-                    else if (kDiff < 0 && pkDiff < 0 && candle.close > kVal && cRsiB < 60 && pRsiB >= 60 && candle.close < candle.open && rsiWSlope <= 0) { 
-                        rawSig = 'SELL'; algName = 'ALG-2'; 
-                    }
-                }
-                
-                // SİNYAL ONAYI VE MESAFE FİLTRESİ (10 Mum)
-                if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 10) {
+
+                // SİNYAL ONAYI VE LOG DETAYI
+                if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 8) {
                     lastSigType = rawSig;
                     lastSigIndex = j;
                     
@@ -470,16 +514,16 @@ function calcInd() {
                         position: rawSig === 'BUY' ? 'belowBar' : 'aboveBar',
                         color: color,
                         shape: rawSig === 'BUY' ? 'arrowUp' : 'arrowDown',
-                        text: rawSig === 'BUY' ? 'AL' : 'SAT',
-                        size: 3 
+                        text: `${rawSig} (${confidence}%)`,
+                        size: 2
                     });
                     
                     if (j >= candles.length - 50) {
                         const timeStr = new Date(candle.time * 1000).toLocaleTimeString('tr-TR');
-                        newLogs.unshift(`<div class="log-row" style="color:${color}">
+                        newLogs.unshift(`<div class="log-row" style="color:${color}; border-left: 2px solid ${color}; padding-left: 8px;">
                             <span>[${timeStr}]</span>
-                            <span style="font-weight:bold">${algName}</span>
-                            <span>${rawSig === 'BUY' ? 'ALIM' : 'SATIŞ'}</span>
+                            <span style="font-weight:bold; color:#fff">${algName}</span>
+                            <span style="color:#00ff41">CONF: ${confidence}%</span>
                             <span>$${candle.close.toFixed(currentPrecision)}</span>
                         </div>`);
                     }
