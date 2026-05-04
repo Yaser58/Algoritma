@@ -222,7 +222,10 @@ async function loadHist(){
         }
         candles = [...new Map(allCandles.map(item => [item.time, item])).values()].sort((a,b)=>a.time-b.time);
         
-        if (candles.length > 0) updatePrecision(candles[0].close);
+        if (candles.length > 0) {
+            updatePrecision(candles[0].close);
+            dailyOpen = candles[0].open; // Değişim hesabı için referans
+        }
         
         cS.setData(candles);
         cSt(true, 'ONLINE');
@@ -246,10 +249,7 @@ function handleWS(e){
     const data = msg.data || msg;
     if (data.p || data.c || data.P) {
         cp = +(data.p || data.c || data.P);
-        const lt = document.getElementById('liveTick');
-        if(lt) { lt.style.display = 'block'; lt.innerText = 'CANLI: $' + cp.toFixed(currentPrecision); }
-        const el = document.getElementById('sP');
-        if(el) el.innerText = '$' + cp.toFixed(currentPrecision);
+        updPrice({close: cp});
     }
     if(isHistLoaded) handleData(data);
 }
@@ -304,10 +304,21 @@ function handleData(d) {
     }
 }
 
+let dailyOpen = 0;
 function updPrice(c){
     if(!c) return;
     const el = document.getElementById('sP');
     if(el) el.innerText = '$' + c.close.toFixed(currentPrecision);
+    
+    const sc = document.getElementById('sC');
+    if(sc && dailyOpen > 0) {
+        const change = ((c.close - dailyOpen) / dailyOpen) * 100;
+        sc.innerText = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+        sc.style.color = change >= 0 ? 'var(--green)' : 'var(--red)';
+    }
+    
+    const lt = document.getElementById('liveTick');
+    if(lt) { lt.style.display = 'block'; lt.innerText = 'CANLI: $' + c.close.toFixed(currentPrecision); }
 }
 
 // ─── INDICATORS ───
