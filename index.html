@@ -187,17 +187,20 @@ function buildChart(){
     const box=document.getElementById('chartBox');
     chart=LightweightCharts.createChart(box,{
         width:box.clientWidth,height:box.clientHeight,
-        layout:{background:{type:'solid',color:'#000'},textColor:'#00ff41'},
-        grid:{vertLines:{color:'#001a00'},horzLines:{color:'#001a00'}},
+        layout:{background:{type:'solid',color:'#000'},textColor:'#00ffcc'},
+        grid:{vertLines:{color:'#0a0a0a'},horzLines:{color:'#0a0a0a'}},
         crosshair:{mode:LightweightCharts.CrosshairMode.Normal},
-        rightPriceScale:{borderColor:'#003b00'},
-        timeScale:{borderColor:'#003b00',timeVisible:true},
+        rightPriceScale:{
+            borderColor:'#1a1a1a',
+            scaleMargins: { top: 0.15, bottom: 0.25 } // Mumların yapışmasını engeller
+        },
+        timeScale:{borderColor:'#1a1a1a',timeVisible:true},
     });
-    cS=chart.addCandlestickSeries({upColor:'#00ff41',downColor:'#ff0000',wickUpColor:'#00ff41',wickDownColor:'#ff0000',borderVisible:false});
+    cS=chart.addCandlestickSeries({upColor:'#00ffcc',downColor:'#ff0055',wickUpColor:'#00ffcc',wickDownColor:'#ff0055',borderVisible:false});
     kernelSeries=chart.addLineSeries({lineWidth:2,lastValueVisible:false,priceLineVisible:false});
     r1S=chart.addLineSeries({color:'#ffffff',lineWidth:2,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
-    r2S=chart.addLineSeries({color:'#4444ff',lineWidth:1,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
-    chart.priceScale('rsi').applyOptions({autoScale:true,scaleMargins:{top:0.78,bottom:0}});
+    r2S=chart.addLineSeries({color:'#3153ff',lineWidth:1,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
+    chart.priceScale('rsi').applyOptions({autoScale:true,scaleMargins:{top:0.8,bottom:0}});
     new ResizeObserver(()=>chart.resize(box.clientWidth,box.clientHeight)).observe(box);
 }
 
@@ -552,8 +555,8 @@ function calcInd() {
                         position: rawSig === 'BUY' ? 'belowBar' : 'aboveBar',
                         color: color,
                         shape: rawSig === 'BUY' ? 'arrowUp' : 'arrowDown',
-                        text: rawSig === 'BUY' ? '█ ALIM' : '█ SATIŞ',
-                        size: 2
+                        text: rawSig === 'BUY' ? '[ BUY ]' : '[ SELL ]',
+                        size: 3
                     });
                     
                     if (j >= candles.length - 50) {
