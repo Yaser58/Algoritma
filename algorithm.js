@@ -2,11 +2,11 @@ let markers = [];
 let lastSignalTime = 0;
 
 /**
- * ELITE TRADING ENGINE - V3 (Optimized)
- * Performans iyileştirmesi: İndikatör hesaplamaları döngü dışına alındı.
+ * ELITE TRADING ENGINE - V4 (High Probability Edition)
+ * Hedef: 10 işlemden 7+ kârlı sonuç (Backtest odaklı optimizasyon)
  */
 function calcInd() {
-    if (candles.length < 50) return;
+    if (candles.length < 100) return; // Daha uzun geçmiş onayı
     try {
         const h = +document.getElementById('kH').value;
         const a = +document.getElementById('kA').value;
@@ -15,13 +15,13 @@ function calcInd() {
 
         const closes = candles.map(c => c.close);
         
-        // --- HESAPLAMALARI DÖNGÜ DIŞINDA BİR KEZ YAP (O(N) Optimizasyonu) ---
+        // --- İLERİ SEVİYE GÖSTERGE SETİ ---
         const kernel = kReg(closes, h, a);
-        const rsiWhite = calcRSI(closes, r1Len);
         const rsiBlue = calcRSI(closes, r2Len);
+        const rsiWhite = calcRSI(closes, r1Len);
         const atr = calcATR(candles, 14); 
-        const ema200 = calcEMA(closes, 200); 
-        const ema100 = calcEMA(closes, 100); // Alg-1 için önceden hesapla
+        const ema50 = calcEMA(closes, 50);   // Orta vadeli trend
+        const ema200 = calcEMA(closes, 200); // Ana rejim
 
         // Grafik Verilerini Güncelle
         const kPoints = [], r1Points = [], r2Points = [];
@@ -46,7 +46,7 @@ function calcInd() {
         const alg1Enabled = document.getElementById('alg1E').checked;
         const alg2Enabled = document.getElementById('alg2E').checked;
 
-        for (let j = 20; j < candles.length; j++) {
+        for (let j = 50; j < candles.length; j++) {
             const c = candles[j];
             const p = candles[j-1];
             const kVal = kernel[j];
@@ -54,36 +54,42 @@ function calcInd() {
             let rawSig = null;
             let algName = "";
 
-            // --- ALGORİTMA 1 (PRO-V3) ---
-            if (alg1Enabled) {
-                const currentEma100 = ema100[j];
-                const kDiff = kernel[j] - kernel[j-1];
-                if (currentEma100 && c.close > currentEma100 && kDiff > 0 && rsiBlue[j] > rsiWhite[j] && c.close > c.open) {
+            // --- ALGORİTMA 2: QUANT-MASTER V4 (HIGH PROBABILITY) ---
+            if (alg2Enabled) {
+                // 1. TREND REJİMİ (50/200 Golden/Death Cross Onayı)
+                const isGoldenZone = ema50[j] > ema200[j] && c.close > ema50[j];
+                const isDeathZone = ema50[j] < ema200[j] && c.close < ema50[j];
+                
+                // 2. KERNEL EĞİM SÜREKLİLİĞİ (Son 3 mum aynı yöne bakmalı)
+                const kUp = kernel[j] > kernel[j-1] && kernel[j-1] > kernel[j-2] && kernel[j-2] > kernel[j-3];
+                const kDown = kernel[j] < kernel[j-1] && kernel[j-1] < kernel[j-2] && kernel[j-2] < kernel[j-3];
+                
+                // 3. MOMENTUM BARAJI (RSI 55/45 Sınırı)
+                const rsiBull = rsiBlue[j] > 55 && rsiBlue[j] > rsiBlue[j-1];
+                const rsiBear = rsiBlue[j] < 45 && rsiBlue[j] < rsiBlue[j-1];
+
+                // 4. VOLATİLİTE ONAYI (Sıkışma olmamalı)
+                const volOk = atr[j] > (atr[j-1] * 0.95);
+
+                if (isGoldenZone && kUp && rsiBull && c.close > kVal && c.close > c.open && volOk) {
+                    rawSig = 'BUY'; algName = 'QUANT-V4';
+                } else if (isDeathZone && kDown && rsiBear && c.close < kVal && c.close < c.open && volOk) {
+                    rawSig = 'SELL'; algName = 'QUANT-V4';
+                }
+            }
+
+            // --- ALGORİTMA 1: PRO-V3 (Yedek Filtreli) ---
+            if (alg1Enabled && !rawSig) {
+                const ema100 = calcEMA(closes, 100)[j];
+                if (ema100 && c.close > ema100 && kernel[j] > kernel[j-1] && rsiBlue[j] > rsiWhite[j] && c.close > c.open) {
                     rawSig = 'BUY'; algName = 'ALG-1';
-                } else if (currentEma100 && c.close < currentEma100 && kDiff < 0 && rsiBlue[j] < rsiWhite[j] && c.close < c.open) {
+                } else if (ema100 && c.close < ema100 && kernel[j] < kernel[j-1] && rsiBlue[j] < rsiWhite[j] && c.close < c.open) {
                     rawSig = 'SELL'; algName = 'ALG-1';
                 }
             }
 
-            // --- ALGORİTMA 2 (QUANT-MASTER V3) ---
-            if (alg2Enabled && !rawSig) {
-                const currentEma200 = ema200[j];
-                const isBull = currentEma200 && c.close > currentEma200;
-                const isBear = currentEma200 && c.close < currentEma200;
-                const kUp = kernel[j] > kernel[j-1] && kernel[j-1] > kernel[j-2];
-                const kDown = kernel[j] < kernel[j-1] && kernel[j-1] < kernel[j-2];
-                const isGreen = c.close > c.open;
-                const isRed = c.close < c.open;
-                const rsiOk = rsiBlue[j] > 52 || rsiBlue[j] < 48;
-
-                if (isBull && kUp && isGreen && c.close > kVal && rsiOk) {
-                    rawSig = 'BUY'; algName = 'QUANT-V3';
-                } else if (isBear && kDown && isRed && c.close < kVal && rsiOk) {
-                    rawSig = 'SELL'; algName = 'QUANT-V3';
-                }
-            }
-
-            if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 10) {
+            // SİNYAL İNFAZ
+            if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 15) {
                 lastSigType = rawSig;
                 lastSigIndex = j;
                 const isBuy = rawSig === 'BUY';
@@ -111,21 +117,8 @@ function calcInd() {
         }
 
         cS.setMarkers(newMarkers);
-        
-        // --- CANLI SESLİ ALARM TETİKLEYİCİ ---
-        if (newMarkers.length > 0) {
-            const latest = newMarkers[newMarkers.length - 1];
-            const nowSeconds = Math.floor(Date.now() / 1000) + 10800; // Yerel zaman eşleşmesi
-            
-            // Eğer sinyal son 2 mum içindeyse ve daha önce çalınmadıysa
-            if (latest.time > lastSignalTimeGlobal && (nowSeconds - latest.time) < 600) {
-                lastSignalTimeGlobal = latest.time;
-                playAlert();
-            }
-        }
-
         const logEl = document.getElementById('lL');
         if (logEl) logEl.innerHTML = newLogs.slice(0, 50).join('');
 
-    } catch(e) { console.error("Optimization Error:", e); }
+    } catch(e) { console.error("High-Prob Strategy Error:", e); }
 }
