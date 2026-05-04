@@ -224,7 +224,9 @@ async function loadHist(){
         
         if (candles.length > 0) {
             updatePrecision(candles[0].close);
-            dailyOpen = candles[0].open; // Değişim hesabı için referans
+            dailyOpen = candles[0].open;
+            cp = candles[candles.length - 1].close; // Fiyatı anında set et
+            updPrice({close: cp}); // Etiketleri anında doldur
         }
         
         cS.setData(candles);
@@ -304,11 +306,14 @@ function handleData(d) {
     }
 }
 
-let dailyOpen = 0;
+let dailyOpen = 0, entryLine = null;
 function updPrice(c){
-    if(!c) return;
+    if(!c || !c.close) return;
     const el = document.getElementById('sP');
-    if(el) el.innerText = '$' + c.close.toFixed(currentPrecision);
+    if(el) {
+        el.innerText = '$' + c.close.toFixed(currentPrecision);
+        el.style.display = 'block';
+    }
     
     const sc = document.getElementById('sC');
     if(sc && dailyOpen > 0) {
@@ -622,6 +627,17 @@ function openP(t){
     pos = { t: t, e: cp, a: bal / cp };
     trd++;
     
+    // Grafikte İşlem Çizgisi Oluştur
+    if(entryLine) cS.removePriceLine(entryLine);
+    entryLine = cS.createPriceLine({
+        price: cp,
+        color: t === 'BUY' ? '#00ffcc' : '#ff0055',
+        lineWidth: 2,
+        lineStyle: LightweightCharts.LineStyle.Dotted,
+        axisLabelVisible: true,
+        title: t + ' @ ' + cp.toFixed(currentPrecision),
+    });
+
     document.getElementById('tC').innerText = trd;
     const clB = document.getElementById('clB');
     if(clB) {
@@ -639,6 +655,9 @@ function closeP(){
     bal += pnl;
     pnlT += pnl;
     
+    // Çizgiyi Kaldır
+    if(entryLine) { cS.removePriceLine(entryLine); entryLine = null; }
+
     document.getElementById('bV').innerText = '$' + bal.toFixed(2);
     const ps = document.getElementById('pS');
     if(ps) {
