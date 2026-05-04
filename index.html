@@ -213,7 +213,7 @@ async function loadHist(){
             const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${pair}&interval=${tf}&limit=1000&endTime=${endTime}`);
             const raw = await res.json();
             const batch = raw.map(d => ({
-                time: Math.floor(d[0]/1000), 
+                time: Math.floor(d[0]/1000) + 10800, 
                 open: +d[1], high: +d[2], low: +d[3], close: +d[4],
                 volume: +d[5]
             }));
@@ -245,63 +245,69 @@ async function loadHist(){
 }
 
 function handleWS(e){
-    try {
-        lastWsMsgTime = Date.now();
-        const msg = JSON.parse(e.data);
-        const k = msg.k || msg;
-        
-        if (k && (k.c || k.p)) {
-            const price = +(k.c || k.p);
-            cp = price;
-            updPrice({close: cp});
-            
-            // Veriyi anında grafiğe bas
-            handleData(k);
-        }
-    } catch(err) { console.error("WS Error:", err); }
+    lastWsMsgTime = Date.now();
+    const msg = JSON.parse(e.data);
+    const data = msg.data || msg;
+    if(isHistLoaded) handleData(data);
 }
 
 function startWS(){
     if(ws){ws.onclose=null;ws.onerror=null;ws.close();}
-    // En stabil canlı mum akışı (Direct Kline Stream)
-    const wsUrl=`wss://fstream.binance.com/ws/${pair.toLowerCase()}@kline_${tf}`;
+    const wsUrl=`wss://fstream.binance.com/stream?streams=${pair.toLowerCase()}@kline_${tf}/${pair.toLowerCase()}@markPrice@1s`;
     ws=new WebSocket(wsUrl);
     ws.onmessage=handleWS;
     ws.onopen=()=>{ cSt(true, "LIVE ONLINE"); };
-    ws.onerror=(e)=>{ sLog("WS HATASI, TEKRAR BAĞLANIYOR..."); setTimeout(startWS, 3000); };
+    ws.onerror=(e)=>{ sLog("WS HATASI!"); setTimeout(startWS, 3000); };
 }
 
-function handleData(k) {
-    try {
-        if (!k || (!k.t && !k.T)) return;
-        
-        const c = { 
-            time: Math.floor(k.t/1000), 
-            open: +k.o, high: +k.h, low: +k.l, close: +k.c,
-            volume: +k.v 
-        };
+function handleData(d) {
+    let candleData = null;
+    const now = Math.floor(Date.now() / 1000) + 10800;
+    const tf_val = parseInt(tf);
+    const tf_sec = (tf.includes('h') ? tf_val * 3600 : tf_val * 60);
+    const current_candle_time = Math.floor(now / tf_sec) * tf_sec;
 
-        if (cS) {
-            cS.update(c);
-            
-            // Candles dizisini güncelle (Indikatörler için)
-            if (candles.length > 0) {
-                let last = candles[candles.length - 1];
-                if (c.time === last.time) candles[candles.length - 1] = c;
-                else if (c.time > last.time) {
-                    candles.push(c);
-                    chart.timeScale().scrollToRealTime();
-                }
-            }
-            
-            updPnl();
-            const nowMs = Date.now();
-            if (nowMs - lastCalcTime > 2000) {
-                calcInd();
-                lastCalcTime = nowMs;
+    if (d.p || d.c || d.P) {
+        const price = +(d.p || d.c || d.P);
+        cp = price;
+        updPrice({close: cp});
+        if (candles.length > 0) {
+            let last = candles[candles.length - 1];
+            if (current_candle_time > last.time) {
+                const newC = { time: current_candle_time, open: price, high: price, low: price, close: price };
+                candles.push(newC);
+                candleData = newC;
+            } else {
+                if (price > last.high) last.high = price;
+                if (price < last.low) last.low = price;
+                last.close = price;
+                candleData = last;
             }
         }
-    } catch(err) { console.error("Data Error:", err); }
+    } 
+    if (d.e === 'kline' || d.k) {
+        const k = d.k || d;
+        const c = { 
+            time: Math.floor(k.t/1000) + 10800, 
+            open: +k.o, high: +k.h, low: +k.l, close: +k.c,
+            volume: +k.v
+        };
+        if(candles.length > 0){
+            let last = candles[candles.length-1];
+            if(last.time === c.time) { candles[candles.length-1] = c; }
+            else if (c.time > last.time) { candles.push(c); }
+        } else { candles.push(c); }
+        candleData = c;
+    }
+    if (candleData && cS) {
+        cS.update(candleData);
+        updPnl();
+        const nowMs = Date.now();
+        if (nowMs - lastCalcTime > 2000) {
+            calcInd();
+            lastCalcTime = nowMs;
+        }
+    }
 }
 
 let dailyOpen = 0, entryLine = null;
