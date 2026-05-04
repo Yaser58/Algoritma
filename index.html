@@ -7,132 +7,106 @@
     <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        :root { --bg:#000; --panel:#050505; --green:#00ffcc; --red:#ff0055; --border:#003b00; --dim:#008f11; --glow: rgba(0,255,204,0.15); }
+        :root { --bg:#020202; --panel:#080808; --green:#00ffcc; --red:#ff0055; --border:#1a1a1a; --dim:#555; --glow: rgba(0,255,204,0.1); }
         * { box-sizing:border-box; margin:0; padding:0; }
         body { font-family:'JetBrains Mono',monospace; background:var(--bg); color:var(--green); display:flex; height:100vh; overflow:hidden; }
 
-        #sidebar { width:300px; min-width:300px; background:var(--panel); border-right:2px solid var(--border); padding:16px; display:flex; flex-direction:column; gap:16px; overflow-y:auto; height:100vh; }
-        #sidebar::-webkit-scrollbar { width:4px; }
-        #sidebar::-webkit-scrollbar-thumb { background:var(--green); }
+        #sidebar { width:280px; min-width:280px; background:var(--panel); border-right:1px solid var(--border); padding:20px; display:flex; flex-direction:column; gap:20px; overflow-y:auto; height:100vh; z-index:100; }
+        #sidebar::-webkit-scrollbar { width:2px; }
+        #sidebar::-webkit-scrollbar-thumb { background:var(--border); }
 
-        .logo { font-size:1.1rem; font-weight:700; letter-spacing:2px; text-transform:uppercase; border-bottom:1px solid var(--border); padding-bottom:10px; text-shadow: 0 0 10px var(--green); }
-        .section { border:1px solid var(--border); padding:10px; display:flex; flex-direction:column; gap:8px; background: rgba(0,59,0,0.05); }
-        .stitle { font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); font-weight:700; }
+        .logo { font-size:1rem; font-weight:800; letter-spacing:3px; text-transform:uppercase; border-bottom:1px solid var(--border); padding-bottom:15px; text-shadow: 0 0 15px var(--green); color:#fff; }
+        .section { display:flex; flex-direction:column; gap:10px; }
+        .stitle { font-size:.6rem; letter-spacing:.2em; text-transform:uppercase; color:var(--dim); font-weight:800; margin-bottom:5px; }
 
-        select,input[type="number"] { background:#000; border:1px solid var(--border); color:var(--green); padding:8px; font-family:inherit; font-size:.8rem; width:100%; outline:none; transition: 0.3s; }
-        select:focus,input:focus { border-color:var(--green); box-shadow:0 0 8px var(--green); }
+        select,input[type="number"] { background:#000; border:1px solid var(--border); color:#fff; padding:10px; font-family:inherit; font-size:.75rem; width:100%; outline:none; transition: 0.3s; }
+        select:focus,input:focus { border-color:var(--green); }
 
         .pgrid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-        .pbtn { background:#000; border:1px solid var(--border); color:var(--green); padding:8px 4px; cursor:pointer; font-family:inherit; font-size:.75rem; text-align:center; transition: 0.2s; }
-        .pbtn:hover { background:var(--border); color:#fff; }
-        .pbtn.active { background:var(--green); color:#000; font-weight:700; box-shadow: 0 0 10px var(--green); }
+        .pbtn { background:#000; border:1px solid var(--border); color:#aaa; padding:8px 4px; cursor:pointer; font-family:inherit; font-size:.7rem; text-align:center; transition: 0.2s; }
+        .pbtn:hover { color:#fff; border-color:var(--dim); }
+        .pbtn.active { background:var(--green); color:#000; font-weight:800; border-color:var(--green); box-shadow: 0 0 10px var(--green); }
 
-        label { font-size:.7rem; color:var(--dim); }
+        #main { flex:1; display:flex; flex-direction:column; position:relative; min-width:0; background:#000; }
+        
+        /* TOP STATUS BAR */
+        #topBar { height:60px; background:var(--panel); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 25px; gap:40px; }
+        .stat { display:flex; flex-direction:column; gap:2px; }
+        .sl { font-size:.55rem; color:var(--dim); text-transform:uppercase; letter-spacing:1.5px; }
+        .sv { font-size:.9rem; font-weight:800; color:#fff; }
 
-        #main { flex:1; display:flex; flex-direction:column; position:relative; min-width:0; }
-        #chartBox { flex:1; position:relative; min-height:200px; }
+        #chartBox { flex:1; position:relative; }
 
-        .ov { position:absolute; background:rgba(0,0,0,0.85); border:1px solid var(--border); padding:12px 16px; z-index:50; font-size:.8rem; backdrop-filter: blur(4px); box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        #infoOv { top:14px; left:14px; pointer-events:none; border-left: 3px solid var(--green); }
-        #portOv { top:14px; left:210px; display:flex; gap:20px; font-size:.72rem; border-left: 3px solid #fff; }
-        #connOv { top:14px; right:14px; font-size:.6rem; display:flex; align-items:center; gap:6px; z-index:1000; border-right: 3px solid var(--green); }
+        .ov { position:absolute; z-index:50; pointer-events:none; }
+        #infoOv { top:20px; left:20px; }
+        #connOv { top:20px; right:20px; display:flex; align-items:center; gap:10px; background:rgba(0,0,0,0.6); padding:6px 12px; border:1px solid var(--border); border-radius:4px; }
 
-        .dot { width:6px; height:6px; border-radius:50%; display:inline-block; }
-        .don { background:var(--green); box-shadow:0 0 8px var(--green); }
-        .doff { background:var(--red); box-shadow:0 0 8px var(--red); }
-
-        .sc { display:flex; flex-direction:column; gap:2px; }
-        .sl { color:var(--dim); font-size:.6rem; text-transform:uppercase; letter-spacing: 1px; }
-        .sv { font-weight:700; color:#fff; font-size:.9rem; }
-
-        #tradeBtns { position:absolute; bottom:20px; right:20px; display:flex; flex-direction:column; gap:10px; z-index:60; }
-        .tb { padding:12px 28px; border:1px solid; font-family:inherit; font-weight:700; font-size:.8rem; cursor:pointer; text-transform:uppercase; transition: 0.3s; }
-        .tbuy { background:rgba(0,255,204,0.1); color:var(--green); border-color:var(--green); }
-        .tbuy:hover { background:var(--green); color:#000; box-shadow: 0 0 20px var(--green); }
-        .tsell { background:rgba(255,0,85,0.1); color:var(--red); border-color:var(--red); }
-        .tsell:hover { background:var(--red); color:#fff; box-shadow: 0 0 20px var(--red); }
-        .tclose { background:#111; color:#fff; border-color:#444; }
+        /* TRADE BUTTONS IN SIDEBAR */
+        .trade-group { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+        .tb { width:100%; padding:14px; border:1px solid; font-family:inherit; font-weight:800; font-size:.75rem; cursor:pointer; text-transform:uppercase; transition: 0.3s; letter-spacing:1px; }
+        .tbuy { background:rgba(0,255,204,0.05); color:var(--green); border-color:var(--green); }
+        .tbuy:hover { background:var(--green); color:#000; box-shadow: 0 0 15px var(--green); }
+        .tsell { background:rgba(255,0,85,0.05); color:var(--red); border-color:var(--red); }
+        .tsell:hover { background:var(--red); color:#fff; box-shadow: 0 0 15px var(--red); }
+        .tclose { background:#111; color:#fff; border-color:#333; margin-top:5px; }
 
         .sw {position:relative;display:inline-block;width:34px;height:18px;}
         .sw input {opacity:0;width:0;height:0;}
-        .slid {position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#222;transition:.4s;border-radius:18px;border:1px solid var(--border);}
-        .slid:before {position:absolute;content:"";height:10px;width:10px;left:3px;bottom:3px;background-color:#444;transition:.4s;border-radius:50%;}
-        input:checked + .slid {background-color:var(--border); border-color:var(--green);}
-        input:checked + .slid:before {transform:translateX(16px); background-color:var(--green); box-shadow: 0 0 5px var(--green);}
+        .slid {position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#111;transition:.4s;border-radius:18px;border:1px solid #222;}
+        .slid:before {position:absolute;content:"";height:10px;width:10px;left:3px;bottom:3px;background-color:#333;transition:.4s;border-radius:50%;}
+        input:checked + .slid {border-color:var(--green);}
+        input:checked + .slid:before {transform:translateX(16px); background-color:var(--green);}
         
-        #logP { height:180px; border-top:2px solid var(--border); overflow-y:auto; font-size:.75rem; background: #020202; }
-        #lL {height:150px;overflow-y:auto;font-size:0.75rem;padding:10px;background:#000;}
-        .log-row {display:flex; gap:15px; padding:6px 12px; border-bottom:1px solid #0a0a0a; font-family:'JetBrains Mono', monospace; align-items:center; transition: 0.2s; }
-        .log-row:hover { background: rgba(255,255,255,0.03); }
+        #logP { height:200px; border-top:1px solid var(--border); overflow-y:auto; background: #050505; }
+        #lL {height:170px;overflow-y:auto;font-size:0.7rem;padding:15px;}
+        .log-row {display:flex; gap:15px; padding:8px 0; border-bottom:1px solid #0f0f0f; font-family:'JetBrains Mono', monospace; align-items:center; }
 
     </style>
 </head>
 <body>
 <div id="sidebar">
-    <div class="logo">> Yaser ER Algoritma_</div>
-    <div class="section"><div class="stitle">[ PARİTE ]</div><div class="pgrid" id="pG"></div></div>
-    <div class="section"><div class="stitle">[ ZAMAN DİLİMİ ]</div>
-        <select id="tfS"><option value="1m">1 Dakika</option><option value="5m" selected>5 Dakika</option><option value="15m">15 Dakika</option><option value="1h">1 Saat</option></select>
+    <div class="logo">YASER ER ELITE_</div>
+    <div class="section"><div class="stitle">PARİTELER</div><div class="pgrid" id="pG"></div></div>
+    <div class="section"><div class="stitle">PERİYOT</div>
+        <select id="tfS"><option value="1m">1m</option><option value="5m" selected>5m</option><option value="15m">15m</option><option value="1h">1h</option></select>
     </div>
-    <div class="section"><div class="stitle">[ TRADER AYARLARI ]</div>
-        <label>Kernel h</label><input type="number" id="kH" value="15">
-        <label>Alpha</label><input type="number" id="kA" value="8" step="0.25">
-        <label>Hacim RSI 1 (Yavaş)</label><input type="number" id="rs1" value="1000">
-        <label>Hacim RSI 2 (Hızlı)</label><input type="number" id="rs2" value="25">
-        
-        <div class="sS">
-            <div class="sL">SİNYAL AYARLARI</div>
-            <div style="display:flex;gap:10px;margin-bottom:10px">
-                <label class="sw">
-                    <input type="checkbox" id="alg1E" checked>
-                    <span class="slid"></span>
-                </label>
-                <span style="font-size:0.7rem;color:var(--dim)">ALGORİTMA 1 (KERNEL+HACİM)</span>
-            </div>
-            <div style="display:flex;gap:10px">
-                <label class="sw">
-                    <input type="checkbox" id="alg2E">
-                    <span class="slid"></span>
-                </label>
-                <span style="font-size:0.7rem;color:var(--dim)">ALGORİTMA 2 (TREND-BACK)</span>
-            </div>
-        </div>
-        
-        <div class="sS">
-            <div class="sL">DURUM</div>
-            <div id="sL" style="font-size:.68rem;color:var(--dim);line-height:1.6">BOOT...</div>
+    <div class="section"><div class="stitle">ALGORİTMA AYARLARI</div>
+        <label>H Hassasiyet</label><input type="number" id="kH" value="15">
+        <div style="display:flex;gap:10px;margin-top:10px">
+            <label class="sw"><input type="checkbox" id="alg1E" checked><span class="slid"></span></label>
+            <span style="font-size:0.6rem;color:#888">ALG-1 AKTİF</span>
         </div>
     </div>
+    <div class="section">
+        <div class="stitle">İŞLEM MERKEZİ</div>
+        <div class="trade-group">
+            <button class="tb tbuy" onclick="openP('BUY')">LONG AÇ</button>
+            <button class="tb tsell" onclick="openP('SELL')">SHORT AÇ</button>
+            <button class="tb tclose" id="clB" style="display:none" onclick="closeP()">POZİSYONU KAPAT</button>
+        </div>
+    </div>
+    <div class="section"><div class="stitle">SİSTEM DURUMU</div><div id="sL" style="font-size:.6rem;color:#444">READY...</div></div>
 </div>
 <div id="main">
+    <div id="topBar">
+        <div class="stat"><span class="sl">CÜZDAN</span><span class="sv" id="bV">$100.00</span></div>
+        <div class="stat"><span class="sl">AÇIK PNL</span><span class="sv" id="pV">$0.00</span></div>
+        <div class="stat"><span class="sl">K/Z TOPLAM</span><span class="sv" id="pS">+$0.00</span></div>
+        <div class="stat" style="margin-left:auto"><span class="sl">İŞLEM ADEDİ</span><span class="sv" id="tC">0</span></div>
+    </div>
     <div id="chartBox">
         <div class="ov" id="infoOv">
-            <div id="sN" style="font-weight:700;color:#fff;font-size:1rem">BTCUSDT</div>
-            <div id="sP" style="font-size:1.3rem;margin:4px 0">—</div>
-            <div id="sC" style="font-size:.75rem">0.00%</div>
+            <div id="sN" style="font-weight:900;color:#fff;font-size:1.1rem;letter-spacing:1px">BTCUSDT</div>
+            <div id="sP" style="font-size:1.4rem;margin:4px 0;color:var(--green)">—</div>
+            <div id="sC" style="font-size:.7rem;opacity:0.6">0.00%</div>
         </div>
-        <div class="ov" id="portOv">
-            <div class="sc"><span class="sl">BAKİYE</span><span class="sv" id="bV">$100.00</span></div>
-            <div class="sc"><span class="sl">AÇIK PNL</span><span class="sv" id="pV">$0.00</span></div>
-            <div class="sc"><span class="sl">İŞLEM</span><span class="sv" id="tC">0</span></div>
-            <div class="sc"><span class="sl">K/Z</span><span class="sv" id="pS">+$0.00</span></div>
-        </div>
-        <div class="ov" id="connOv" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
-            <div style="display:flex;align-items:center;gap:6px">
-                <span id="heartbeat" style="font-size:0.6rem;color:var(--dim)">[ 0 ]</span>
-                <span class="dot doff" id="cD"></span>
-                <span id="cT" style="font-weight:bold">BAŞLATILIYOR</span>
-            </div>
-            <div id="dataSource" style="font-size:0.6rem;color:#00ff41;opacity:0.7">YEDEK BEKLENİYOR...</div>
-            <div id="liveTick" style="color:#fff;font-size:0.7rem;background:rgba(0,255,65,0.1);padding:2px 6px;border-radius:2px;display:none">FİYAT BEKLENİYOR...</div>
-        </div>
-        <div id="tradeBtns">
-            <button class="tb tbuy" onclick="openP('BUY')">ALIM AÇ</button>
-            <button class="tb tsell" onclick="openP('SELL')">SATIŞ AÇ</button>
-            <button class="tb tclose" id="clB" style="display:none" onclick="closeP()">KAPAT</button>
+        <div class="ov" id="connOv">
+            <span id="heartbeat" style="font-size:0.5rem;color:#444">[0]</span>
+            <span class="dot doff" id="cD"></span>
+            <span id="cT" style="font-size:0.6rem;font-weight:bold;color:#fff">BAĞLANTI YOK</span>
         </div>
     </div>
-    <div id="logP"><div class="stitle" style="padding:10px">[ LOG ]</div><div id="lL"></div></div>
+    <div id="logP"><div id="lL"></div></div>
 </div>
 <script>
 const PAIRS=['BTCUSDT','ETHUSDT','FILUSDT','ENAUSDT','ADAUSDT','DOGEUSDT','XRPUSDT'];
