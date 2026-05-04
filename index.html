@@ -213,9 +213,9 @@ async function loadHist(){
             const res = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${pair}&interval=${tf}&limit=1000&endTime=${endTime}`);
             const raw = await res.json();
             const batch = raw.map(d => ({
-                time: Math.floor(d[0]/1000) + 10800, 
+                time: Math.floor(d[0]/1000), 
                 open: +d[1], high: +d[2], low: +d[3], close: +d[4],
-                volume: +d[5] // Hacim eklendi
+                volume: +d[5]
             }));
             allCandles = batch.concat(allCandles);
             endTime = raw[0][0] - 1;
@@ -257,69 +257,54 @@ function handleWS(e){
     const msg = JSON.parse(e.data);
     const data = msg.data || msg;
     
-    // Fiyatı Her Türlü Mesajdan Çek (p veya k.c)
-    const price = +(data.p || data.c || data.P || (data.k ? data.k.c : 0));
-    if (price > 0) {
-        cp = price;
+    if (data.p || data.c || data.P || (data.k ? data.k.c : 0)) {
+        cp = +(data.p || data.c || data.P || (data.k ? data.k.c : 0));
         updPrice({close: cp});
     }
     
-    if(isHistLoaded) handleData(data);
+    if(isHistLoaded) {
+        if (data.k) handleData(data.k);
+        else if (data.e === 'kline') handleData(data);
+        else if (data.p || data.c) handleData(data);
+    }
 }
 
 function handleData(d) {
-    let candleData = null;
-    const now = Math.floor(Date.now() / 1000) + 10800;
-    const tf_val = parseInt(tf);
-    const tf_sec = (tf.includes('h') ? tf_val * 3600 : tf_val * 60);
-    const current_candle_time = Math.floor(now / tf_sec) * tf_sec;
-
-    if (d.p || d.c || d.P) {
+    let c = null;
+    if (d.t || d.k) {
+        const k = d.k || d;
+        c = { 
+            time: Math.floor(k.t/1000), 
+            open: +k.o, high: +k.h, low: +k.l, close: +k.c,
+            volume: +k.v 
+        };
+    } else if (d.p || d.c) {
         const price = +(d.p || d.c || d.P);
-        cp = price;
-        const lt = document.getElementById('liveTick');
-        if(lt) { lt.style.display = 'block'; lt.innerText = 'CANLI: $' + price.toFixed(currentPrecision); }
         if (candles.length > 0) {
             let last = candles[candles.length - 1];
-            if (current_candle_time > last.time) {
-                const newC = { time: current_candle_time, open: price, high: price, low: price, close: price };
-                candles.push(newC);
-                candleData = newC;
-                d.newCandle = true;
-            } else {
-                if (price > last.high) last.high = price;
-                if (price < last.low) last.low = price;
-                last.close = price;
-                candleData = last;
-            }
+            last.close = price;
+            if (price > last.high) last.high = price;
+            if (price < last.low) last.low = price;
+            c = last;
         }
-    } 
-    if (d.e === 'kline' || d.k) {
-        const k = d.k || d;
-        const c = { 
-            time: Math.floor(k.t/1000) + 10800, 
-            open: +k.o, high: +k.h, low: +k.l, close: +k.c,
-            volume: +k.v // Hacim eklendi
-        };
-        if(candles.length > 0){
-            let last = candles[candles.length-1];
-            if(last.time === c.time) { candles[candles.length-1] = c; }
-            else if (c.time > last.time) { candles.push(c); d.newCandle = true; }
-        } else { candles.push(c); }
-        candleData = c;
     }
-    if (candleData && cS) {
-        cS.update(candleData);
+
+    if (c && cS) {
+        // Candles dizisini güncelle
+        if (candles.length > 0) {
+            let last = candles[candles.length - 1];
+            if (c.time === last.time) candles[candles.length - 1] = c;
+            else if (c.time > last.time) candles.push(c);
+        }
+        
+        cS.update(c);
         updPnl();
         
-        // Performans: Sadece yeni mumda veya 2 saniyede bir hesapla
         const nowMs = Date.now();
-        if (d.newCandle || (nowMs - lastCalcTime > 2000)) {
+        if (nowMs - lastCalcTime > 2000) {
             calcInd();
             lastCalcTime = nowMs;
         }
-        
-        if (d.newCandle) chart.timeScale().scrollToRealTime();
     }
 }
 
