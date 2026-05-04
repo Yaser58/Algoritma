@@ -40,13 +40,23 @@ function updatePrecision(price) {
 function updPrice(c){
     if(!c || !c.close) return;
     
-    // Sol üstteki fiyat kutusu (sP)
+    // Sol üstteki fiyat (sP)
     const el = document.getElementById('sP');
     if(el) {
         el.innerText = '$' + c.close.toFixed(currentPrecision);
     }
     
-    // Sağ üstteki canlı tik (liveTick)
+    // Sol üstteki yüzde değişimi (sC)
+    if(typeof dailyOpen !== 'undefined' && dailyOpen > 0) {
+        const sc = document.getElementById('sC');
+        if(sc) {
+            const change = ((c.close - dailyOpen) / dailyOpen) * 100;
+            sc.innerText = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+            sc.style.color = change >= 0 ? 'var(--green)' : 'var(--red)';
+        }
+    }
+    
+    // Sağ üstteki canlı tik
     const lt = document.getElementById('liveTick');
     if(lt) { 
         lt.style.display = 'block'; 

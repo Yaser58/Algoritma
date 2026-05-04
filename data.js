@@ -1,5 +1,22 @@
+let dailyOpen = 0;
+
+async function fetchTicker() {
+    try {
+        const res = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${pair}`);
+        const d = await res.json();
+        dailyOpen = +d.lastPrice / (1 + (+d.priceChangePercent / 100));
+        const sc = document.getElementById('sC');
+        if (sc) {
+            const change = +d.priceChangePercent;
+            sc.innerText = (change >= 0 ? '+' : '') + change.toFixed(2) + '%';
+            sc.style.color = change >= 0 ? 'var(--green)' : 'var(--red)';
+        }
+    } catch (e) { console.error("Ticker Error:", e); }
+}
+
 async function loadHist(){
     cSt(false,'YÜKLENİYOR...');
+    fetchTicker(); // 24s verisini çek
     try {
         let allCandles = [];
         let endTime = Date.now();
@@ -12,13 +29,19 @@ async function loadHist(){
         }
         candles = [...new Map(allCandles.map(item => [item.time, item])).values()].sort((a,b)=>a.time-b.time);
         
-        if (candles.length > 0) updatePrecision(candles[0].close);
+        if (candles.length > 0) {
+            cp = candles[candles.length-1].close;
+            updatePrecision(cp);
+            updPrice({close: cp});
+        }
         
         cS.setData(candles);
         cSt(true, 'ONLINE');
         isHistLoaded = true;
         calcInd();
-        setTimeout(() => chart.timeScale().fitContent(), 50);
+        setTimeout(() => {
+            chart.timeScale().fitContent();
+        }, 100);
     } catch(e) { sLog('HATA: ' + e.message); }
 }
 
@@ -27,16 +50,23 @@ function startWS(){
     const wsUrl=`wss://fstream.binance.com/stream?streams=${pair.toLowerCase()}@kline_${tf}/${pair.toLowerCase()}@markPrice@1s`;
     ws=new WebSocket(wsUrl);
     ws.onmessage=handleWS;
+    ws.onopen=()=>{ cSt(true, "LIVE ONLINE"); };
 }
 
 function handleWS(e){
     lastWsMsgTime = Date.now();
     const msg = JSON.parse(e.data);
     const data = msg.data || msg;
-    if (data.p || data.c || data.P) {
-        cp = +(data.p || data.c || data.P);
+    
+    let price = 0;
+    if (data.p || data.c || data.P) price = +(data.p || data.c || data.P);
+    else if (data.k) price = +data.k.c;
+
+    if (price > 0) {
+        cp = price;
         updPrice({close: cp});
     }
+
     if(isHistLoaded) handleData(data);
 }
 
@@ -47,9 +77,9 @@ function handleData(d) {
     const tf_sec = (tf.includes('h') ? tf_val * 3600 : tf_val * 60);
     const current_candle_time = Math.floor(now / tf_sec) * tf_sec;
 
-    if (d.p || d.c || d.P) {
-        const price = +(d.p || d.c || d.P);
-        if (candles.length > 0) {
+    if (d.p || d.c || d.P || d.k) {
+        const price = +(d.p || d.c || d.P || (d.k ? d.k.c : 0));
+        if (price > 0 && candles.length > 0) {
             let last = candles[candles.length - 1];
             if (current_candle_time > last.time) {
                 const newC = { time: current_candle_time, open: price, high: price, low: price, close: price };
@@ -63,20 +93,7 @@ function handleData(d) {
             }
         }
     } 
-    if (d.e === 'kline' || d.k) {
-        const k = d.k || d;
-        const c = { 
-            time: Math.floor(k.t/1000) + 10800, 
-            open: +k.o, high: +k.h, low: +k.l, close: +k.c,
-            volume: +k.v
-        };
-        if(candles.length > 0){
-            let last = candles[candles.length-1];
-            if(last.time === c.time) { candles[candles.length-1] = c; }
-            else if (c.time > last.time) { candles.push(c); }
-        } else { candles.push(c); }
-        candleData = c;
-    }
+    
     if (candleData && cS) {
         cS.update(candleData);
         updPnl();
@@ -85,10 +102,16 @@ function handleData(d) {
 }
 
 function fetchPriceFallback() {
-    if (Date.now() - lastWsMsgTime < 2000) return;
+    if (Date.now() - lastWsMsgTime < 2000) {
+        document.getElementById('dataSource').innerText = 'KAYNAK: WEBSOCKET';
+        return;
+    }
     try {
         fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${pair}`).then(r=>r.json()).then(d=>{
             if (d.price) {
+                document.getElementById('dataSource').innerText = 'KAYNAK: YEDEK (REST)';
+                cp = +d.price;
+                updPrice({close: cp});
                 handleData({ p: d.price });
             }
         });
