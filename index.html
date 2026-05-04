@@ -498,27 +498,27 @@ function calcInd() {
                 const kVal = kernel[j];
                 const kDiff = kernel[j] - kernel[j-1];
                 
-                // --- SİSTEMATİK KATMANLAR V4 (YATAY FİLTRELİ) ---
+                // --- SİSTEMATİK KATMANLAR V4.1 (KALİBRE EDİLMİŞ) ---
                 
-                // Katman 0: Piyasa Rejimi (ADX > 22 ise Trend var, değilse Yatay)
-                const isTrending = adx[j] > 22;
+                // Katman 0: Piyasa Rejimi (ADX > 15 ise Trend başlangıcı kabul edilir)
+                const isTrending = adx[j] > 15;
                 
                 // Katman 1: Trend Gücü (EMA + Kernel Slope + Slope Magnitude)
-                const slopeThreshold = candle.close * 0.00015; // Minimum eğim dikliği
+                const slopeThreshold = candle.close * 0.0001; // Eğim eşiği biraz esnetildi
                 const isBullish = candle.close > (ema100[j] || 0) && kDiff > slopeThreshold;
                 const isBearish = candle.close < (ema100[j] || 999999) && kDiff < -slopeThreshold;
                 
-                // Katman 2: Kararlılık (Son 5 mum aynı yönde olmalı)
+                // Katman 2: Kararlılık (Son 3 mum aynı yönde olmalı - 5'ten 3'e çekildi)
                 let stableCount = 0;
-                for(let m=0; m<5; m++) if(j-m > 0 && (kDiff > 0 ? kernel[j-m] > kernel[j-m-1] : kernel[j-m] < kernel[j-m-1])) stableCount++;
-                const isStable = stableCount >= 5;
+                for(let m=0; m<3; m++) if(j-m > 0 && (kDiff > 0 ? kernel[j-m] > kernel[j-m-1] : kernel[j-m] < kernel[j-m-1])) stableCount++;
+                const isStable = stableCount >= 3;
 
-                // Katman 3: Hacim Onayı (Current Vol > VMA * 1.5)
-                const volOk = candle.volume > (vma20[j] * 1.5);
+                // Katman 3: Hacim Onayı (Current Vol > VMA * 1.1)
+                const volOk = candle.volume > (vma20[j] * 1.1);
                 
                 // Katman 4: Momentum (RSI)
-                const rsiBuyOk = cRsiB > cRsiW && pRsiB <= pRsiW && cRsiB > 50;
-                const rsiSellOk = cRsiB < cRsiW && pRsiB >= pRsiW && cRsiB < 50;
+                const rsiBuyOk = cRsiB > cRsiW && pRsiB <= pRsiW && cRsiB > 45;
+                const rsiSellOk = cRsiB < cRsiW && pRsiB >= pRsiW && cRsiB < 55;
 
                 let rawSig = null;
                 let algName = "";
@@ -530,22 +530,22 @@ function calcInd() {
                     if (isBullish) score += 40;
                     if (rsiBuyOk) score += 30;
                     if (volOk) score += 20;
-                    if (Math.abs(candle.close - kVal) > (atr[j] * 0.5)) score += 10;
+                    if (Math.abs(candle.close - kVal) > (atr[j] * 0.3)) score += 10;
 
-                    if (score >= 80) { rawSig = 'BUY'; algName = 'ELITE-S4'; confidence = score; }
+                    if (score >= 65) { rawSig = 'BUY'; algName = 'ELITE-V4'; confidence = score; }
                     
                     // SHORT GÜVEN SKORU
                     let sScore = 0;
                     if (isBearish) sScore += 40;
                     if (rsiSellOk) sScore += 30;
                     if (volOk) sScore += 20;
-                    if (Math.abs(candle.close - kVal) > (atr[j] * 0.5)) sScore += 10;
+                    if (Math.abs(candle.close - kVal) > (atr[j] * 0.3)) sScore += 10;
 
-                    if (sScore >= 80) { rawSig = 'SELL'; algName = 'ELITE-S4'; confidence = sScore; }
+                    if (sScore >= 65) { rawSig = 'SELL'; algName = 'ELITE-V4'; confidence = sScore; }
                 }
 
-                // SİNYAL ONAYI VE MESAFE (15 Mum - Yatayda daralmayı engellemek için)
-                if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 15) {
+                // SİNYAL ONAYI VE MESAFE (10 Mum)
+                if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 10) {
                     lastSigType = rawSig;
                     lastSigIndex = j;
                     
