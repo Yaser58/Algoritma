@@ -1,0 +1,25 @@
+//@version=4
+study(title="TradER Hacim", shorttitle="TradER Hacim", overlay=false)
+
+// İlk RSI hesaplaması
+src = close
+len1 = input(100, minval=1, title="TradER Hacim 1")  // Varsayılan değer 100
+up1 = rma(max(change(src), 0), len1)
+down1 = rma(-min(change(src), 0), len1)
+rsi1 = down1 == 0 ? 100 : up1 == 0 ? 0 : 100 - (100 / (1 + up1 / down1))
+plot(rsi1, color=color.white, title="TradER Hacim 1", transp=0, linewidth=2)
+
+// İlk RSI için seviye çizgileri
+show_band1 = input(true, title="TradER Hacim 1")  // Varsayılan olarak kapalı
+plot(show_band1 ? 70 : na, title="TradER ÜST ÇİZGİ", color=color.red, linewidth=1)
+
+// İkinci RSI hesaplaması
+len2 = input(25, minval=1, title="TradER Hacim 2")  // Varsayılan değer 25
+up2 = rma(max(change(src), 0), len2)
+down2 = rma(-min(change(src), 0), len2)
+rsi2 = down2 == 0 ? 100 : up2 == 0 ? 0 : 100 - (100 / (1 + up2 / down2))
+plot(rsi2, color=color.blue, title="TradER Hacim 2", transp=0, linewidth=1)
+
+// İkinci RSI için seviye çizgileri
+show_band00 = input(true, title="TradER Hacim 2")  // Varsayılan olarak kapalı
+plot(show_band00 ? 30 : na, title="TradER ALT ÇİZGİ", color=color.green, linewidth=1)
