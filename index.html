@@ -256,10 +256,14 @@ function handleWS(e){
     document.getElementById('dataSource').innerText = 'KAYNAK: WEBSOCKET';
     const msg = JSON.parse(e.data);
     const data = msg.data || msg;
-    if (data.p || data.c || data.P) {
-        cp = +(data.p || data.c || data.P);
+    
+    // Fiyatı Her Türlü Mesajdan Çek (p veya k.c)
+    const price = +(data.p || data.c || data.P || (data.k ? data.k.c : 0));
+    if (price > 0) {
+        cp = price;
         updPrice({close: cp});
     }
+    
     if(isHistLoaded) handleData(data);
 }
 
@@ -306,9 +310,15 @@ function handleData(d) {
     }
     if (candleData && cS) {
         cS.update(candleData);
-        updPrice(candleData);
         updPnl();
-        calcInd();
+        
+        // Performans: Sadece yeni mumda veya 2 saniyede bir hesapla
+        const nowMs = Date.now();
+        if (d.newCandle || (nowMs - lastCalcTime > 2000)) {
+            calcInd();
+            lastCalcTime = nowMs;
+        }
+        
         if (d.newCandle) chart.timeScale().scrollToRealTime();
     }
 }
@@ -382,6 +392,7 @@ function kReg(data, h, a) {
 
 let markers = [];
 let lastSignalTime = 0;
+let lastCalcTime = 0;
 function calcVMA(data, length) {
     const vma = new Array(data.length).fill(null);
     let sum = 0;
