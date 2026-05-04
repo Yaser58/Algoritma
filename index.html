@@ -414,29 +414,32 @@ function calcInd() {
                 const pRsiB = rsiBlue[j-1], pRsiW = rsiWhite[j-1];
                 const cRsiB = rsiBlue[j], cRsiW = rsiWhite[j];
                 const kVal = kernel[j];
-                const kColor = (j > 0 && kernel[j] > kernel[j-1]) ? '#ffffff' : '#3153ff';
+                const kDiff = kernel[j] - kernel[j-1];
+                const pkDiff = kernel[j-1] - kernel[j-2];
+                const rsiWSlope = rsiWhite[j] - rsiWhite[j-1];
+                const kColor = kDiff > 0 ? '#ffffff' : '#3153ff';
                 
                 let rawSig = null;
                 let algName = "";
                 
-                // ALGORİTMA 1: KESİŞİM + TREND FİLTRESİ
+                // ALGORİTMA 1 PRO: TREND + MOMENTUM + ONALILAR
                 if (alg1) {
-                    // BUY: Kernel Beyaz + RSI Kesişimi + Yeşil Mum Onayı
-                    if (kColor === '#ffffff' && cRsiB > cRsiW && pRsiB <= pRsiW && candle.close > candle.open) { 
+                    // BUY: Kernel Yükselen + RSI Kesişimi + Yavaş RSI Trendi + Fiyat Onayı
+                    if (kDiff > 0 && pkDiff > 0 && cRsiB > cRsiW && pRsiB <= pRsiW && rsiWSlope >= 0 && candle.close > kVal && candle.close > candle.open) { 
                         rawSig = 'BUY'; algName = 'ALG-1'; 
                     }
-                    // SELL: Kernel Mavi + RSI Kesişimi + Kırmızı Mum Onayı
-                    else if (kColor === '#3153ff' && cRsiB < cRsiW && pRsiB >= pRsiW && candle.close < candle.open) { 
+                    // SELL: Kernel Düşen + RSI Kesişimi + Yavaş RSI Trendi + Fiyat Onayı
+                    else if (kDiff < 0 && pkDiff < 0 && cRsiB < cRsiW && pRsiB >= pRsiW && rsiWSlope <= 0 && candle.close < kVal && candle.close < candle.open) { 
                         rawSig = 'SELL'; algName = 'ALG-1'; 
                     }
                 }
                 
-                // ALGORİTMA 2: TREND-BACK + MOMENTUM (Alg 1 sinyal vermediyse)
+                // ALGORİTMA 2 PRO: TREND-BACK + MOMENTUM
                 if (!rawSig && alg2) {
-                    if (kColor === '#ffffff' && candle.close < kVal && cRsiB > 40 && pRsiB <= 40 && candle.close > candle.open) { 
+                    if (kDiff > 0 && candle.close < kVal && cRsiB > 40 && pRsiB <= 40 && candle.close > candle.open && rsiWSlope >= 0) { 
                         rawSig = 'BUY'; algName = 'ALG-2'; 
                     }
-                    else if (kColor === '#3153ff' && candle.close > kVal && cRsiB < 60 && pRsiB >= 60 && candle.close < candle.open) { 
+                    else if (kDiff < 0 && candle.close > kVal && cRsiB < 60 && pRsiB >= 60 && candle.close < candle.open && rsiWSlope <= 0) { 
                         rawSig = 'SELL'; algName = 'ALG-2'; 
                     }
                 }
