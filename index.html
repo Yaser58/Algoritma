@@ -605,28 +605,54 @@ function updPnl(){
         el.style.color=pnl>=0?'#00ff41':'#ff0000';
     }
 }
+// ─── TRADING ───
+function updPnl(){
+    if(!pos || cp === 0) return;
+    const pnl = pos.t === 'BUY' ? (cp - pos.e) * pos.a : (pos.e - cp) * pos.a;
+    const el = document.getElementById('pV');
+    if(el) {
+        el.innerText = (pnl >= 0 ? '+' : '') + '$' + pnl.toFixed(2);
+        el.style.color = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    }
+}
 function openP(t){
-    if(pos||cp===0)return;
-    pos={t,e:cp,a:bal/cp}; trd++;
-    document.getElementById('tC').innerText=trd;
-    document.getElementById('clB').style.display='block';
-    document.getElementById('clB').innerText=t+' KAPAT';
-    sLog('POZ AÇILDI: '+t+' @ '+cp);
+    if(pos) { sLog('ZATEN AÇIK POZİSYON VAR!'); return; }
+    if(cp === 0) { sLog('FİYAT BEKLENİYOR...'); return; }
+    
+    pos = { t: t, e: cp, a: bal / cp };
+    trd++;
+    
+    document.getElementById('tC').innerText = trd;
+    const clB = document.getElementById('clB');
+    if(clB) {
+        clB.style.display = 'block';
+        clB.innerText = t + ' POZİSYONU KAPAT';
+    }
+    
+    document.getElementById('sL').innerText = "İŞLEM AÇILDI: " + t;
+    sLog('POZİSYON AÇILDI: ' + t + ' @ ' + cp.toFixed(currentPrecision));
+    updPnl();
 }
 function closeP(){
-    if(!pos)return;
-    const pnl=pos.t==='BUY'?(cp-pos.e)*pos.a:(pos.e-cp)*pos.a;
-    bal+=pnl; pnlT+=pnl;
-    document.getElementById('bV').innerText='$'+bal.toFixed(2);
-    const ps=document.getElementById('pS');
+    if(!pos) return;
+    const pnl = pos.t === 'BUY' ? (cp - pos.e) * pos.a : (pos.e - cp) * pos.a;
+    bal += pnl;
+    pnlT += pnl;
+    
+    document.getElementById('bV').innerText = '$' + bal.toFixed(2);
+    const ps = document.getElementById('pS');
     if(ps) {
-        ps.innerText=(pnlT>=0?'+':'')+'$'+pnlT.toFixed(2);
-        ps.style.color=pnlT>=0?'#00ff41':'#ff0000';
+        ps.innerText = (pnlT >= 0 ? '+' : '') + '$' + pnlT.toFixed(2);
+        ps.style.color = pnlT >= 0 ? 'var(--green)' : 'var(--red)';
     }
-    document.getElementById('pV').innerText='$0.00';
-    document.getElementById('pV').style.color='#fff';
-    pos=null; document.getElementById('clB').style.display='none';
-    sLog('POZ KAPANDI. PNL: '+pnl.toFixed(2));
+    
+    const pV = document.getElementById('pV');
+    if(pV) { pV.innerText = '$0.00'; pV.style.color = '#fff'; }
+    
+    sLog('POZİSYON KAPANDI. PNL: ' + pnl.toFixed(2));
+    pos = null;
+    document.getElementById('clB').style.display = 'none';
+    document.getElementById('sL').innerText = "İŞLEM KAPATILDI";
 }
 
 function swP(p){
