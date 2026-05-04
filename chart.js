@@ -38,10 +38,18 @@ function updatePrecision(price) {
 }
 
 function updPrice(c){
-    if(!c) return;
-    const el = document.getElementById('sP');
-    if(el) el.innerText = '$' + c.close.toFixed(currentPrecision);
+    if(!c || !c.close) return;
     
+    // Sol üstteki fiyat kutusu (sP)
+    const el = document.getElementById('sP');
+    if(el) {
+        el.innerText = '$' + c.close.toFixed(currentPrecision);
+    }
+    
+    // Sağ üstteki canlı tik (liveTick)
     const lt = document.getElementById('liveTick');
-    if(lt) { lt.style.display = 'block'; lt.innerText = 'CANLI: $' + c.close.toFixed(currentPrecision); }
+    if(lt) { 
+        lt.style.display = 'block'; 
+        lt.innerText = 'CANLI: $' + c.close.toFixed(currentPrecision); 
+    }
 }
