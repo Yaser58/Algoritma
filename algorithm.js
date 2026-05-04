@@ -2,8 +2,8 @@ let markers = [];
 let lastSignalTime = 0;
 
 /**
- * QUANT-V1 STRATEGY
- * Araştırma sonuçlarına dayalı; Volatilite Zarfı ve Trend Rejimi odaklı strateji.
+ * FLASH-V2 AGGRESSIVE STRATEGY
+ * Hız ve Erken Giriş Odaklı "Zero-Lag" Stratejisi
  */
 function calcInd() {
     if (candles.length < 50) return;
@@ -15,24 +15,22 @@ function calcInd() {
 
         const closes = candles.map(c => c.close);
         const kernel = kReg(closes, h, a);
-        const rsiWhite = calcRSI(closes, r1Len);
-        const rsiBlue = calcRSI(closes, r2Len);
-        const atr = calcATR(candles, 20); 
-        const emaRegime = calcEMA(closes, 200); // 200 EMA Ana Trend Rejimi
+        const rsiMain = calcRSI(closes, 14); 
+        const emaFast = calcEMA(closes, 50); // Daha çevik trend filtresi
 
-        const kPoints = [], r1Points = [], r2Points = [];
+        // Grafik Renklerini Orijinal Tut
+        const kPoints = [], r1Points = [];
         for (let i = 0; i < candles.length; i++) {
             const t = candles[i].time;
             if (kernel[i]) {
                 const color = (i > 0 && kernel[i] > kernel[i-1]) ? '#ffffff' : '#3153ff';
                 kPoints.push({ time: t, value: kernel[i], color });
             }
-            if (rsiWhite[i] !== null) r1Points.push({ time: t, value: rsiWhite[i] });
-            if (rsiBlue[i] !== null) r2Points.push({ time: t, value: rsiBlue[i] });
+            if (rsiMain[i] !== null) r1Points.push({ time: t, value: rsiMain[i] });
         }
         kernelSeries.setData(kPoints);
         r1S.setData(r1Points);
-        r2S.setData(r2Points);
+        r2S.setData([]); // Sadelik için tek RSI
 
         let newMarkers = [];
         let newLogs = [];
@@ -42,38 +40,38 @@ function calcInd() {
         const alg1 = document.getElementById('alg1E').checked;
 
         if (alg1) {
-            for (let j = 20; j < candles.length; j++) {
+            for (let j = 5; j < candles.length; j++) {
                 const c = candles[j];
                 const p = candles[j-1];
                 const kVal = kernel[j];
-                const currentAtr = atr[j] || 0;
-                const currentEma = emaRegime[j];
+                const pkVal = kernel[j-1];
                 
-                // 1. REJİM FİLTRESİ (Trend Yönü)
-                const isBull = currentEma && c.close > currentEma;
-                const isBear = currentEma && c.close < currentEma;
+                // 1. ÇEVİK TREND (EMA 50)
+                const isBull = c.close > emaFast[j];
+                const isBear = c.close < emaFast[j];
 
-                // 2. VOLATİLİTE ZARFI (Z-Score Mantığı)
-                // Fiyatın Kernel'den ne kadar saptığını ölçer (1.5 ATR katsayısı)
-                const upperEnv = kVal + (currentAtr * 1.5);
-                const lowerEnv = kVal - (currentAtr * 1.5);
+                // 2. KERNEL CROSS (Hızlı Kırılım)
+                // Fiyatın Kernel hattını o yöndeki eğimle beraber kırması
+                const crossUp = c.close > kVal && p.close <= pkVal && kVal > pkVal;
+                const crossDown = c.close < kVal && p.close >= pkVal && kVal < pkVal;
 
-                // 3. MOMENTUM ONAYI
-                const rsiOkBuy = rsiBlue[j] > rsiWhite[j] && rsiBlue[j] > 50;
-                const rsiOkSell = rsiBlue[j] < rsiWhite[j] && rsiBlue[j] < 50;
+                // 3. MOMENTUM (Hız Filtresi)
+                const momUp = rsiMain[j] > 50 && rsiMain[j] > rsiMain[j-1];
+                const momDown = rsiMain[j] < 50 && rsiMain[j] < rsiMain[j-1];
 
                 let rawSig = null;
 
-                // ALIM: Trend Boğa + Fiyat Zarfın Üstünde + RSI Güçlü
-                if (isBull && c.close > upperEnv && p.close <= (kernel[j-1] + atr[j-1]*1.5) && rsiOkBuy) {
+                // ALIM: Trend Okey + Kernel Kırılımı + Momentum Yukarı
+                if (isBull && crossUp && momUp) {
                     rawSig = 'BUY';
                 }
-                // SATIM: Trend Ayı + Fiyat Zarfın Altında + RSI Zayıf
-                else if (isBear && c.close < lowerEnv && p.close >= (kernel[j-1] - atr[j-1]*1.5) && rsiOkSell) {
+                // SATIM: Trend Okey + Kernel Kırılımı + Momentum Aşağı
+                else if (isBear && crossDown && momDown) {
                     rawSig = 'SELL';
                 }
 
-                if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 10) {
+                // HIZLI SİNYAL ONAYI (5 mumluk kısa mesafe)
+                if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 5) {
                     lastSigType = rawSig;
                     lastSigIndex = j;
                     
@@ -83,7 +81,7 @@ function calcInd() {
                         position: rawSig === 'BUY' ? 'belowBar' : 'aboveBar',
                         color: color,
                         shape: rawSig === 'BUY' ? 'arrowUp' : 'arrowDown',
-                        text: rawSig === 'BUY' ? 'AL' : 'SAT',
+                        text: rawSig === 'BUY' ? 'L' : 'S',
                         size: 3 
                     });
                     
@@ -91,7 +89,7 @@ function calcInd() {
                         const timeStr = new Date(c.time * 1000).toLocaleTimeString('tr-TR');
                         newLogs.unshift(`<div class="log-row" style="color:${color}">
                             <span>[${timeStr}]</span>
-                            <span style="font-weight:bold">QUANT-V1</span>
+                            <span style="font-weight:bold">FLASH-V2</span>
                             <span>${rawSig === 'BUY' ? 'LONG' : 'SHORT'}</span>
                             <span>$${c.close.toFixed(currentPrecision)}</span>
                         </div>`);
@@ -104,5 +102,5 @@ function calcInd() {
         const logEl = document.getElementById('lL');
         if (logEl) logEl.innerHTML = newLogs.slice(0, 50).join('');
 
-    } catch(e) { console.error("Quant Algorithm Error:", e); }
+    } catch(e) { console.error("Flash V2 Error:", e); }
 }
