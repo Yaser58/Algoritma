@@ -2,9 +2,7 @@ let markers = [];
 let lastSignalTime = 0;
 
 /**
- * ELITE TRADING ENGINE - V3
- * Algoritma 1: Klasik PRO-V3
- * Algoritma 2: QUANT-MASTER V3 (Gelişmiş Mum Onaylı ve Görsel Optimize)
+ * ELITE TRADING ENGINE - V3 (Premium Edition)
  */
 function calcInd() {
     if (candles.length < 50) return;
@@ -47,7 +45,6 @@ function calcInd() {
             const c = candles[j];
             const p = candles[j-1];
             const kVal = kernel[j];
-            const currentAtr = atr[j] || 0;
             const currentEma = emaRegime[j];
             
             let rawSig = null;
@@ -68,48 +65,42 @@ function calcInd() {
             if (alg2Enabled && !rawSig) {
                 const isBull = currentEma && c.close > currentEma;
                 const isBear = currentEma && c.close < currentEma;
-                
                 const kUp = kernel[j] > kernel[j-1] && kernel[j-1] > kernel[j-2];
                 const kDown = kernel[j] < kernel[j-1] && kernel[j-1] < kernel[j-2];
-                
-                // Mum Rengi Onayı (Sahte sinyalleri süzer)
-                const isGreenCandle = c.close > c.open;
-                const isRedCandle = c.close < c.open;
-                
-                // Güçlü Momentum Bölgesi
+                const isGreen = c.close > c.open;
+                const isRed = c.close < c.open;
                 const rsiOk = rsiBlue[j] > 52 || rsiBlue[j] < 48;
 
-                // BUY: Boğa Rejimi + Kernel Eğim + Yeşil Mum + Kernel Üstü Kapanış
-                if (isBull && kUp && isGreenCandle && c.close > kVal && rsiOk) {
+                if (isBull && kUp && isGreen && c.close > kVal && rsiOk) {
                     rawSig = 'BUY'; algName = 'QUANT-V3';
-                }
-                // SELL: Ayı Rejimi + Kernel Eğim + Kırmızı Mum + Kernel Altı Kapanış
-                else if (isBear && kDown && isRedCandle && c.close < kVal && rsiOk) {
+                } else if (isBear && kDown && isRed && c.close < kVal && rsiOk) {
                     rawSig = 'SELL'; algName = 'QUANT-V3';
                 }
             }
 
-            // SİNYAL İNFAZ VE GÖRSELLEŞTİRME
+            // --- PREMIUM GÖRSEL İNFAZ ---
             if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 10) {
                 lastSigType = rawSig;
                 lastSigIndex = j;
                 
-                const color = rawSig === 'BUY' ? '#00ff41' : '#ff3131';
+                const isBuy = rawSig === 'BUY';
+                const color = isBuy ? '#00ff41' : '#ff0000';
+                
                 newMarkers.push({
                     time: c.time,
-                    position: rawSig === 'BUY' ? 'belowBar' : 'aboveBar',
+                    position: isBuy ? 'belowBar' : 'aboveBar',
                     color: color,
-                    shape: rawSig === 'BUY' ? 'arrowUp' : 'arrowDown',
-                    text: rawSig === 'BUY' ? 'AL' : 'SAT',
-                    size: 1 // Boyut küçültüldü, mumun içine girmez
+                    shape: isBuy ? 'arrowUp' : 'arrowDown',
+                    text: isBuy ? 'LONG' : 'SHORT', // Daha profesyonel isimler
+                    size: 2 // İdeal "Elite" boyutu
                 });
                 
                 if (j >= candles.length - 50) {
                     const timeStr = new Date(c.time * 1000).toLocaleTimeString('tr-TR');
-                    newLogs.unshift(`<div class="log-row" style="color:${color}; border-left: 2px solid ${color}; padding-left:8px">
+                    newLogs.unshift(`<div class="log-row" style="color:${color}; border-left: 3px solid ${color}; padding-left:10px">
                         <span>[${timeStr}]</span>
                         <span style="font-weight:bold">${algName}</span>
-                        <span>${rawSig === 'BUY' ? 'ALIM' : 'SATIŞ'}</span>
+                        <span>${isBuy ? 'LONG' : 'SHORT'}</span>
                         <span>$${c.close.toFixed(currentPrecision)}</span>
                     </div>`);
                 }
@@ -120,5 +111,5 @@ function calcInd() {
         const logEl = document.getElementById('lL');
         if (logEl) logEl.innerHTML = newLogs.slice(0, 50).join('');
 
-    } catch(e) { console.error("Quant-Master V3 Error:", e); }
+    } catch(e) { console.error("Elite Engine Error:", e); }
 }
