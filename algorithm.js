@@ -1,8 +1,12 @@
 let markers = [];
 let lastSignalTime = 0;
 
+/**
+ * ELITE-V6 HYBRID ALGORITHM
+ * Araştırma Sonuçlarına Dayalı İleri Seviye Sinyal Motoru
+ */
 function calcInd() {
-    if (candles.length < 50) return;
+    if (candles.length < 100) return; 
     try {
         const h = +document.getElementById('kH').value;
         const a = +document.getElementById('kA').value;
@@ -10,17 +14,20 @@ function calcInd() {
         const r2Len = +document.getElementById('rs2').value;
 
         const closes = candles.map(c => c.close);
+        
+        // --- KATMAN 1: HESAPLAMALAR ---
         const kernel = kReg(closes, h, a);
         const rsiWhite = calcRSI(closes, r1Len);
         const rsiBlue = calcRSI(closes, r2Len);
-        const atr = calcATR(candles, 60);
-        const ema100 = calcEMA(closes, 100);
+        const atr = calcATR(candles, 14); 
+        const emaLong = calcEMA(closes, 100); 
 
+        // Grafiği Güncelle
         const kPoints = [], r1Points = [], r2Points = [];
         for (let i = 0; i < candles.length; i++) {
             const t = candles[i].time;
             if (kernel[i]) {
-                const color = (i > 0 && kernel[i] > kernel[i-1]) ? '#ffffff' : '#3153ff';
+                const color = (i > 0 && kernel[i] > kernel[i-1]) ? '#00ffcc' : '#ff0055';
                 kPoints.push({ time: t, value: kernel[i], color });
             }
             if (rsiWhite[i] !== null) r1Points.push({ time: t, value: rsiWhite[i] });
@@ -39,62 +46,69 @@ function calcInd() {
         const alg2 = document.getElementById('alg2E').checked;
 
         if (alg1 || alg2) {
-            for (let j = 3; j < candles.length; j++) {
+            for (let j = 20; j < candles.length; j++) {
                 const candle = candles[j];
-                const pRsiB = rsiBlue[j-1], pRsiW = rsiWhite[j-1];
                 const cRsiB = rsiBlue[j], cRsiW = rsiWhite[j];
-                const kVal = kernel[j];
+                const pRsiB = rsiBlue[j-1], pRsiW = rsiWhite[j-1];
+                
+                // --- KATMAN 2: ELITE-V6 SİNYAL MANTIĞI ---
+                const isBullRegime = candle.close > (emaLong[j] || 0);
+                const isBearRegime = candle.close < (emaLong[j] || 999999);
                 
                 const kDiff = kernel[j] - kernel[j-1];
                 const pkDiff = kernel[j-1] - kernel[j-2];
-                const ppkDiff = kernel[j-2] - kernel[j-3];
+                const isKUp = kDiff > 0 && pkDiff > 0;
+                const isKDown = kDiff < 0 && pkDiff < 0;
                 
-                const rsiWSlope = rsiWhite[j] - rsiWhite[j-1];
-                const volFilter = atr[j] ? atr[j] * 1.0 : 0;
-                const currentEma = ema100[j];
+                const volThreshold = (atr[j] || 0) * 0.8;
+                const isVolOkBuy = candle.close > (kernel[j] + volThreshold);
+                const isVolOkSell = candle.close < (kernel[j] - volThreshold);
                 
+                const isRsiBuy = cRsiB > cRsiW && pRsiB <= pRsiW && cRsiB > 45;
+                const isRsiSell = cRsiB < cRsiW && pRsiB >= pRsiW && cRsiB < 55;
+
                 let rawSig = null;
                 let algName = "";
                 
                 if (alg1) {
-                    if (currentEma && candle.close > currentEma && kDiff > 0 && pkDiff > 0 && ppkDiff > 0 && cRsiB > cRsiW && pRsiB <= pRsiW && rsiWSlope >= 0 && candle.close > (kVal + volFilter) && candle.close > candle.open) { 
-                        rawSig = 'BUY'; algName = 'ALG-1'; 
+                    if (isBullRegime && isKUp && isRsiBuy && isVolOkBuy && candle.close > candle.open) {
+                        rawSig = 'BUY'; algName = 'ELITE-V6';
                     }
-                    else if (currentEma && candle.close < currentEma && kDiff < 0 && pkDiff < 0 && ppkDiff < 0 && cRsiB < cRsiW && pRsiB >= pRsiW && rsiWSlope <= 0 && candle.close < (kVal - volFilter) && candle.close < candle.open) { 
-                        rawSig = 'SELL'; algName = 'ALG-1'; 
+                    else if (isBearRegime && isKDown && isRsiSell && isVolOkSell && candle.close < candle.open) {
+                        rawSig = 'SELL'; algName = 'ELITE-V6';
                     }
                 }
                 
                 if (!rawSig && alg2) {
-                    if (kDiff > 0 && pkDiff > 0 && candle.close < kVal && cRsiB > 40 && pRsiB <= 40 && candle.close > candle.open && rsiWSlope >= 0) { 
-                        rawSig = 'BUY'; algName = 'ALG-2'; 
+                    if (isBullRegime && isKUp && candle.close < kernel[j] && cRsiB > 40 && pRsiB <= 40) {
+                        rawSig = 'BUY'; algName = 'REVERSION-V6';
                     }
-                    else if (kDiff < 0 && pkDiff < 0 && candle.close > kVal && cRsiB < 60 && pRsiB >= 60 && candle.close < candle.open && rsiWSlope <= 0) { 
-                        rawSig = 'SELL'; algName = 'ALG-2'; 
+                    else if (isBearRegime && isKDown && candle.close > kernel[j] && cRsiB < 60 && pRsiB >= 60) {
+                        rawSig = 'SELL'; algName = 'REVERSION-V6';
                     }
                 }
-                
-                if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 10) {
+
+                if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 12) {
                     lastSigType = rawSig;
                     lastSigIndex = j;
                     
-                    const color = rawSig === 'BUY' ? '#00ff41' : '#ff3131';
+                    const color = rawSig === 'BUY' ? '#00ffcc' : '#ff0055';
                     newMarkers.push({
                         time: candle.time,
                         position: rawSig === 'BUY' ? 'belowBar' : 'aboveBar',
                         color: color,
                         shape: rawSig === 'BUY' ? 'arrowUp' : 'arrowDown',
-                        text: rawSig === 'BUY' ? 'AL' : 'SAT',
-                        size: 3 
+                        text: `[ ${rawSig} ]`,
+                        size: 2
                     });
                     
                     if (j >= candles.length - 50) {
                         const timeStr = new Date(candle.time * 1000).toLocaleTimeString('tr-TR');
-                        newLogs.unshift(`<div class="log-row" style="color:${color}">
-                            <span>[${timeStr}]</span>
-                            <span style="font-weight:bold">${algName}</span>
-                            <span>${rawSig === 'BUY' ? 'ALIM' : 'SATIŞ'}</span>
-                            <span>$${candle.close.toFixed(currentPrecision)}</span>
+                        newLogs.unshift(`<div class="log-row" style="color:${color}; border-left: 3px solid ${color}; padding-left: 10px;">
+                            <span style="opacity:0.6">[${timeStr}]</span>
+                            <span style="font-weight:700">${algName}</span>
+                            <span style="color:#fff">${rawSig === 'BUY' ? 'LONG' : 'SHORT'}</span>
+                            <span style="font-family:monospace">$${candle.close.toFixed(currentPrecision)}</span>
                         </div>`);
                     }
                 }
@@ -102,12 +116,8 @@ function calcInd() {
         }
 
         cS.setMarkers(newMarkers);
-
-        const logsHtml = newLogs.slice(0, 50).join('');
         const logEl = document.getElementById('lL');
-        if (logEl.innerHTML !== logsHtml) {
-            logEl.innerHTML = logsHtml;
-        }
+        if (logEl) logEl.innerHTML = newLogs.slice(0, 50).join('');
 
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error("Elite-V6 Error:", e); }
 }
