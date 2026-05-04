@@ -241,7 +241,13 @@ function handleWS(e){
     document.getElementById('dataSource').innerText = 'KAYNAK: WEBSOCKET';
     const msg = JSON.parse(e.data);
     const data = msg.data || msg;
-    if (data.p || data.c || data.P) cp = +(data.p || data.c || data.P);
+    if (data.p || data.c || data.P) {
+        cp = +(data.p || data.c || data.P);
+        const lt = document.getElementById('liveTick');
+        if(lt) { lt.style.display = 'block'; lt.innerText = 'CANLI: $' + cp.toFixed(currentPrecision); }
+        const el = document.getElementById('sP');
+        if(el) el.innerText = '$' + cp.toFixed(currentPrecision);
+    }
     if(isHistLoaded) handleData(data);
 }
 
@@ -610,8 +616,11 @@ function closeP(){
 }
 
 function swP(p){
+    if (pair === p) return;
     pair=p; document.getElementById('sN').innerText=p; buildP();
+    isHistLoaded = false;
     candles=[]; cS.setData([]); kernelSeries.setData([]); r1S.setData([]); r2S.setData([]);
+    cS.setMarkers([]);
     loadHist(); startWS();
 }
 
