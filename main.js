@@ -8,6 +8,15 @@ let hbCount = 0;
 let lastWsMsgTime = 0;
 let currentPrecision = 2;
 let lastCalcTime = 0;
+let lastSignalTimeGlobal = 0; // Canlı sinyal takibi için
+
+function playAlert() {
+    const s = document.getElementById('alertSound');
+    if (s) {
+        s.currentTime = 0;
+        s.play().catch(e => console.log("Ses çalma izni bekleniyor..."));
+    }
+}
 
 function sLog(m){
     const e=document.getElementById('sL');

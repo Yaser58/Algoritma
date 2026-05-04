@@ -111,6 +111,19 @@ function calcInd() {
         }
 
         cS.setMarkers(newMarkers);
+        
+        // --- CANLI SESLİ ALARM TETİKLEYİCİ ---
+        if (newMarkers.length > 0) {
+            const latest = newMarkers[newMarkers.length - 1];
+            const nowSeconds = Math.floor(Date.now() / 1000) + 10800; // Yerel zaman eşleşmesi
+            
+            // Eğer sinyal son 2 mum içindeyse ve daha önce çalınmadıysa
+            if (latest.time > lastSignalTimeGlobal && (nowSeconds - latest.time) < 600) {
+                lastSignalTimeGlobal = latest.time;
+                playAlert();
+            }
+        }
+
         const logEl = document.getElementById('lL');
         if (logEl) logEl.innerHTML = newLogs.slice(0, 50).join('');
 
