@@ -87,7 +87,7 @@
             </div>
             <div style="display:flex;gap:10px">
                 <label class="sw">
-                    <input type="checkbox" id="alg2E" checked>
+                    <input type="checkbox" id="alg2E">
                     <span class="slid"></span>
                 </label>
                 <span style="font-size:0.7rem;color:var(--dim)">ALGORİTMA 2 (TREND-BACK)</span>
@@ -402,6 +402,7 @@ function calcInd() {
         let newMarkers = [];
         let newLogs = [];
         let lastSigType = null; // Sinyal durum takibi (AL -> SAT -> AL)
+        let lastSigIndex = -10; // Sinyaller arası mesafe filtresi (Minimum 5 mum)
 
         const alg1 = document.getElementById('alg1E').checked;
         const alg2 = document.getElementById('alg2E').checked;
@@ -440,9 +441,12 @@ function calcInd() {
                     }
                 }
                 
-                // SİNYAL ONAYI VE FAKE FİLTRESİ (Sadece değişen yönleri al: AL -> SAT)
-                if (rawSig && rawSig !== lastSigType) {
+                // SİNYAL ONAYI VE FAKE FİLTRESİ
+                // Filtre 1: Farklı yön olmalı (AL -> SAT)
+                // Filtre 2: Son sinyal üzerinden en az 5 mum geçmiş olmalı (Mesafe Filtresi)
+                if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 5) {
                     lastSigType = rawSig;
+                    lastSigIndex = j;
                     
                     const color = rawSig === 'BUY' ? '#00ff41' : '#ff3131';
                     newMarkers.push({
@@ -451,7 +455,7 @@ function calcInd() {
                         color: color,
                         shape: rawSig === 'BUY' ? 'arrowUp' : 'arrowDown',
                         text: rawSig === 'BUY' ? 'AL' : 'SAT',
-                        size: 3 // Maksimum görünürlük için boyut 3
+                        size: 3 
                     });
                     
                     if (j >= candles.length - 50) {
