@@ -7,7 +7,7 @@
     <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        :root { --bg:#000; --panel:#050505; --green:#00ff41; --red:#ff0000; --border:#003b00; --dim:#008f11; }
+        :root { --bg:#000; --panel:#050505; --green:#00ffcc; --red:#ff0055; --border:#003b00; --dim:#008f11; --glow: rgba(0,255,204,0.15); }
         * { box-sizing:border-box; margin:0; padding:0; }
         body { font-family:'JetBrains Mono',monospace; background:var(--bg); color:var(--green); display:flex; height:100vh; overflow:hidden; }
 
@@ -15,52 +15,56 @@
         #sidebar::-webkit-scrollbar { width:4px; }
         #sidebar::-webkit-scrollbar-thumb { background:var(--green); }
 
-        .logo { font-size:1.1rem; font-weight:700; letter-spacing:2px; text-transform:uppercase; border-bottom:1px solid var(--border); padding-bottom:10px; }
-        .section { border:1px solid var(--border); padding:10px; display:flex; flex-direction:column; gap:8px; }
+        .logo { font-size:1.1rem; font-weight:700; letter-spacing:2px; text-transform:uppercase; border-bottom:1px solid var(--border); padding-bottom:10px; text-shadow: 0 0 10px var(--green); }
+        .section { border:1px solid var(--border); padding:10px; display:flex; flex-direction:column; gap:8px; background: rgba(0,59,0,0.05); }
         .stitle { font-size:.7rem; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); font-weight:700; }
 
-        select,input[type="number"] { background:#000; border:1px solid var(--border); color:var(--green); padding:8px; font-family:inherit; font-size:.8rem; width:100%; outline:none; }
-        select:focus,input:focus { border-color:var(--green); box-shadow:0 0 4px var(--green); }
+        select,input[type="number"] { background:#000; border:1px solid var(--border); color:var(--green); padding:8px; font-family:inherit; font-size:.8rem; width:100%; outline:none; transition: 0.3s; }
+        select:focus,input:focus { border-color:var(--green); box-shadow:0 0 8px var(--green); }
 
         .pgrid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
-        .pbtn { background:#000; border:1px solid var(--border); color:var(--green); padding:8px 4px; cursor:pointer; font-family:inherit; font-size:.75rem; text-align:center; }
-        .pbtn:hover { background:var(--border); }
-        .pbtn.active { background:var(--green); color:#000; font-weight:700; }
+        .pbtn { background:#000; border:1px solid var(--border); color:var(--green); padding:8px 4px; cursor:pointer; font-family:inherit; font-size:.75rem; text-align:center; transition: 0.2s; }
+        .pbtn:hover { background:var(--border); color:#fff; }
+        .pbtn.active { background:var(--green); color:#000; font-weight:700; box-shadow: 0 0 10px var(--green); }
 
         label { font-size:.7rem; color:var(--dim); }
 
         #main { flex:1; display:flex; flex-direction:column; position:relative; min-width:0; }
         #chartBox { flex:1; position:relative; min-height:200px; }
 
-        .ov { position:absolute; background:rgba(0,0,0,.88); border:1px solid var(--border); padding:10px 14px; z-index:50; font-size:.8rem; }
-        #infoOv { top:14px; left:14px; pointer-events:none; }
-        #portOv { top:14px; left:210px; display:flex; gap:20px; font-size:.72rem; }
-        #connOv { top:14px; right:14px; font-size:.6rem; display:flex; align-items:center; gap:6px; z-index:1000; }
+        .ov { position:absolute; background:rgba(0,0,0,0.85); border:1px solid var(--border); padding:12px 16px; z-index:50; font-size:.8rem; backdrop-filter: blur(4px); box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        #infoOv { top:14px; left:14px; pointer-events:none; border-left: 3px solid var(--green); }
+        #portOv { top:14px; left:210px; display:flex; gap:20px; font-size:.72rem; border-left: 3px solid #fff; }
+        #connOv { top:14px; right:14px; font-size:.6rem; display:flex; align-items:center; gap:6px; z-index:1000; border-right: 3px solid var(--green); }
 
         .dot { width:6px; height:6px; border-radius:50%; display:inline-block; }
-        .don { background:var(--green); box-shadow:0 0 6px var(--green); }
-        .doff { background:var(--red); box-shadow:0 0 6px var(--red); }
+        .don { background:var(--green); box-shadow:0 0 8px var(--green); }
+        .doff { background:var(--red); box-shadow:0 0 8px var(--red); }
 
         .sc { display:flex; flex-direction:column; gap:2px; }
-        .sl { color:var(--dim); font-size:.6rem; }
-        .sv { font-weight:700; color:#fff; font-size:.85rem; }
+        .sl { color:var(--dim); font-size:.6rem; text-transform:uppercase; letter-spacing: 1px; }
+        .sv { font-weight:700; color:#fff; font-size:.9rem; }
 
         #tradeBtns { position:absolute; bottom:20px; right:20px; display:flex; flex-direction:column; gap:10px; z-index:60; }
-        .tb { padding:12px 28px; border:1px solid; font-family:inherit; font-weight:700; font-size:.8rem; cursor:pointer; text-transform:uppercase; }
-        .tbuy { background:#001a00; color:var(--green); border-color:var(--green); }
-        .tsell { background:#1a0000; color:var(--red); border-color:var(--red); }
-        .tclose { background:#222; color:#fff; border-color:#555; }
+        .tb { padding:12px 28px; border:1px solid; font-family:inherit; font-weight:700; font-size:.8rem; cursor:pointer; text-transform:uppercase; transition: 0.3s; }
+        .tbuy { background:rgba(0,255,204,0.1); color:var(--green); border-color:var(--green); }
+        .tbuy:hover { background:var(--green); color:#000; box-shadow: 0 0 20px var(--green); }
+        .tsell { background:rgba(255,0,85,0.1); color:var(--red); border-color:var(--red); }
+        .tsell:hover { background:var(--red); color:#fff; box-shadow: 0 0 20px var(--red); }
+        .tclose { background:#111; color:#fff; border-color:#444; }
 
         .sw {position:relative;display:inline-block;width:34px;height:18px;}
         .sw input {opacity:0;width:0;height:0;}
-        .slid {position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#333;transition:.4s;border-radius:18px;}
-        .slid:before {position:absolute;content:"";height:12px;width:12px;left:3px;bottom:3px;background-color:white;transition:.4s;border-radius:50%;}
-        input:checked + .slid {background-color:var(--main);}
-        input:checked + .slid:before {transform:translateX(16px);}
+        .slid {position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background-color:#222;transition:.4s;border-radius:18px;border:1px solid var(--border);}
+        .slid:before {position:absolute;content:"";height:10px;width:10px;left:3px;bottom:3px;background-color:#444;transition:.4s;border-radius:50%;}
+        input:checked + .slid {background-color:var(--border); border-color:var(--green);}
+        input:checked + .slid:before {transform:translateX(16px); background-color:var(--green); box-shadow: 0 0 5px var(--green);}
         
-        #logP { height:180px; border-top:2px solid var(--border); overflow-y:auto; font-size:.75rem; }
-        #lL {height:150px;overflow-y:auto;font-size:0.75rem;border-top:1px solid #111;padding:10px;background:#050505;}
-        .log-row {display:flex;gap:15px;padding:4px 0;border-bottom:1px solid #0a0a0a;font-family:'JetBrains Mono', monospace;}
+        #logP { height:180px; border-top:2px solid var(--border); overflow-y:auto; font-size:.75rem; background: #020202; }
+        #lL {height:150px;overflow-y:auto;font-size:0.75rem;padding:10px;background:#000;}
+        .log-row {display:flex; gap:15px; padding:6px 12px; border-bottom:1px solid #0a0a0a; font-family:'JetBrains Mono', monospace; align-items:center; transition: 0.2s; }
+        .log-row:hover { background: rgba(255,255,255,0.03); }
+
     </style>
 </head>
 <body>
@@ -549,23 +553,24 @@ function calcInd() {
                     lastSigType = rawSig;
                     lastSigIndex = j;
                     
-                    const color = rawSig === 'BUY' ? '#00ff41' : '#ff3131';
+                    const color = rawSig === 'BUY' ? '#00ffcc' : '#ff0055';
                     newMarkers.push({
                         time: candle.time,
                         position: rawSig === 'BUY' ? 'belowBar' : 'aboveBar',
                         color: color,
                         shape: rawSig === 'BUY' ? 'arrowUp' : 'arrowDown',
-                        text: rawSig === 'BUY' ? 'AL' : 'SAT', // Grafiği temiz tutmak için sadece AL/SAT
+                        text: rawSig === 'BUY' ? '█ ALIM' : '█ SATIŞ',
                         size: 2
                     });
                     
                     if (j >= candles.length - 50) {
                         const timeStr = new Date(candle.time * 1000).toLocaleTimeString('tr-TR');
-                        newLogs.unshift(`<div class="log-row" style="color:${color}; border-left: 2px solid ${color}; padding-left: 8px;">
-                            <span>[${timeStr}]</span>
-                            <span style="font-weight:bold; color:#fff">${algName}</span>
-                            <span style="color:#00ff41">GÜVEN: ${confidence}%</span>
-                            <span>$${candle.close.toFixed(currentPrecision)}</span>
+                        newLogs.unshift(`<div class="log-row" style="color:${color}; border-left: 4px solid ${color}; background:rgba(255,255,255,0.02)">
+                            <span style="color:#aaa; font-size:0.65rem">[${timeStr}]</span>
+                            <span style="font-weight:bold; color:#fff; letter-spacing:1px">${algName}</span>
+                            <span style="font-weight:800">${rawSig === 'BUY' ? '▲ ALIM' : '▼ SATIŞ'}</span>
+                            <span style="color:${color}; opacity:0.8; font-size:0.7rem">GÜVEN: ${confidence}%</span>
+                            <span style="margin-left:auto">$${candle.close.toFixed(currentPrecision)}</span>
                         </div>`);
                     }
                 }
