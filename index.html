@@ -224,9 +224,16 @@ async function loadHist(){
         
         if (candles.length > 0) {
             updatePrecision(candles[0].close);
-            dailyOpen = candles[0].open;
-            cp = candles[candles.length - 1].close; // Fiyatı anında set et
-            updPrice({close: cp}); // Etiketleri anında doldur
+            cp = candles[candles.length - 1].close;
+            
+            // Binance'ten Gerçek 24s Açılış Fiyatını Çek
+            try {
+                const tRes = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${pair}`);
+                const tData = await tRes.json();
+                dailyOpen = +tData.openPrice;
+            } catch(e) { dailyOpen = candles[0].open; }
+            
+            updPrice({close: cp});
         }
         
         cS.setData(candles);
