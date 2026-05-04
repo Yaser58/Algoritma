@@ -39,9 +39,17 @@ async function loadHist(){
         cSt(true, 'ONLINE');
         isHistLoaded = true;
         calcInd();
+        
+        // Güncel fiyata ve son mumlara odaklan
         setTimeout(() => {
-            chart.timeScale().fitContent();
-        }, 100);
+            const count = candles.length;
+            if (count > 0) {
+                chart.timeScale().setVisibleLogicalRange({
+                    from: count - 150,
+                    to: count
+                });
+            }
+        }, 200);
     } catch(e) { sLog('HATA: ' + e.message); }
 }
 
