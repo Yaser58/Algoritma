@@ -44,6 +44,10 @@ function swP(p){
     r2S.setData([]);
     loadHist(); 
     startWS();
+    
+    // Grafiğin olduğu yere odaklan
+    const main = document.getElementById('main');
+    if(main) main.scrollIntoView({ behavior: 'smooth' });
 }
 
 /**
