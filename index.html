@@ -248,16 +248,43 @@ function handleWS(e){
     lastWsMsgTime = Date.now();
     const msg = JSON.parse(e.data);
     const data = msg.data || msg;
-    if(isHistLoaded) handleData(data);
+    
+    // Fiyatı Güncelle
+    const p = +(data.p || data.c || (data.k ? data.k.c : 0));
+    if(p > 0) {
+        cp = p;
+        updPrice({close: cp});
+    }
+
+    // Mum Güncelle (Kontrolsüz Direkt Akış)
+    if (data.k || data.e === 'kline') {
+        const k = data.k || data;
+        const c = { 
+            time: Math.floor(k.t/1000) + 10800, 
+            open: +k.o, high: +k.h, low: +k.l, close: +k.c,
+            volume: +k.v
+        };
+        cS.update(c);
+        
+        // Indikatörler için listeyi güncelle
+        if(candles.length > 0){
+            let last = candles[candles.length-1];
+            if(last.time === c.time) candles[candles.length-1] = c;
+            else if (c.time > last.time) candles.push(c);
+        }
+        
+        updPnl();
+        calcInd();
+    }
 }
 
 function startWS(){
-    if(ws){ws.onclose=null;ws.onerror=null;ws.close();}
+    if(ws) ws.close();
     const wsUrl=`wss://fstream.binance.com/stream?streams=${pair.toLowerCase()}@kline_${tf}/${pair.toLowerCase()}@markPrice@1s`;
     ws=new WebSocket(wsUrl);
     ws.onmessage=handleWS;
     ws.onopen=()=>{ cSt(true, "LIVE ONLINE"); };
-    ws.onerror=(e)=>{ sLog("WS HATASI!"); setTimeout(startWS, 3000); };
+    ws.onerror=()=>{ setTimeout(startWS, 2000); };
 }
 
 function handleData(d) {
