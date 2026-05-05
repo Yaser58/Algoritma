@@ -74,3 +74,68 @@ function calcATR(data, length) {
     }
     return rma;
 }
+
+function calcChopIndex(data, length) {
+    const chop = new Array(data.length).fill(null);
+    if (data.length < length) return chop;
+
+    for (let i = length - 1; i < data.length; i++) {
+        let highSum = -Infinity;
+        let lowSum = Infinity;
+        let atrSum = 0;
+
+        for (let j = 0; j < length; j++) {
+            const c = data[i - j];
+            highSum = Math.max(highSum, c.high);
+            lowSum = Math.min(lowSum, c.low);
+            
+            // TR calculation for sum
+            const p = data[i - j - 1];
+            const tr = p ? Math.max(c.high - c.low, Math.abs(c.high - p.close), Math.abs(c.low - p.close)) : (c.high - c.low);
+            atrSum += tr;
+        }
+
+        const range = highSum - lowSum;
+        if (range > 0) {
+            chop[i] = 100 * (Math.log10(atrSum / range) / Math.log10(length));
+        } else {
+            chop[i] = 100;
+        }
+    }
+    return chop;
+}
+
+function calcADX(data, length) {
+    const adx = new Array(data.length).fill(null);
+    if (data.length < length * 2) return adx;
+
+    const plusDM = data.map((c, i) => {
+        if (i === 0) return 0;
+        const up = c.high - data[i-1].high;
+        const down = data[i-1].low - c.low;
+        return (up > down && up > 0) ? up : 0;
+    });
+
+    const minusDM = data.map((c, i) => {
+        if (i === 0) return 0;
+        const up = c.high - data[i-1].high;
+        const down = data[i-1].low - c.low;
+        return (down > up && down > 0) ? down : 0;
+    });
+
+    const tr = data.map((c, i) => {
+        if (i === 0) return c.high - c.low;
+        return Math.max(c.high - c.low, Math.abs(c.high - data[i-1].close), Math.abs(c.low - data[i-1].close));
+    });
+
+    const trSmooth = calcRMA(tr, length);
+    const plusDMSmooth = calcRMA(plusDM, length);
+    const minusDMSmooth = calcRMA(minusDM, length);
+
+    const diDiff = plusDMSmooth.map((p, i) => Math.abs(p - minusDMSmooth[i]));
+    const diSum = plusDMSmooth.map((p, i) => p + minusDMSmooth[i]);
+    const dx = diDiff.map((diff, i) => diSum[i] === 0 ? 0 : 100 * (diff / diSum[i]));
+
+    return calcRMA(dx, length);
+}
+

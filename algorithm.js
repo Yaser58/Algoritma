@@ -58,6 +58,12 @@ function calcInd() {
         const rsiBlue = calcRSI(closes, r2Len);
         const rsiWhite = calcRSI(closes, r1Len);
         const ema200 = calcEMA(closes, 200);
+        
+        // --- SIDEWAYS FILTERS (Internal) ---
+        const chop = calcChopIndex(candles, 14);
+        const adx = calcADX(candles, 14);
+        const atr = calcATR(candles, 20);
+        const atrSMA = calcEMA(atr.map(v => v === null ? 0 : v), 50);
 
         // Update Chart Data (Visuals must stay same)
         const kPoints = [], r1Points = [], r2Points = [];
@@ -91,6 +97,13 @@ function calcInd() {
         for (let j = 50; j < candles.length; j++) {
             const c = candles[j];
             
+            // --- RANGE / SIDEWAYS DETECTION ---
+            const isChoppy = chop[j] > 60; // 61.8 is standard, 60 is more conservative
+            const isWeakTrend = adx[j] < 20; 
+            const isLowVol = atr[j] < (atrSMA[j] * 0.8); // ATR must be at least 80% of its average
+            
+            const isSideways = isChoppy || isWeakTrend || isLowVol;
+
             // Track Swing Points for Liquidity Levels (lookback 3 for stability)
             if (isSwingHigh(j - 3, 3)) lastSwingHigh = candles[j - 3].high;
             if (isSwingLow(j - 3, 3)) lastSwingLow = candles[j - 3].low;
@@ -99,7 +112,7 @@ function calcInd() {
             let algName = "";
 
             // --- ICT ALGORITHM: BREAD & BUTTER (MSS + FVG) ---
-            if (alg2Enabled) {
+            if (alg2Enabled && !isSideways) {
                 // 1. Check for Liquidity Sweeps (Price takes recent swing)
                 if (lastSwingLow !== 0 && c.low < lastSwingLow) sweepLowIndex = j;
                 if (lastSwingHigh !== 0 && c.high > lastSwingHigh) sweepHighIndex = j;
@@ -127,7 +140,7 @@ function calcInd() {
             }
 
             // --- ICT SCALP: FVG + TREND ALIGNMENT ---
-            if (alg1Enabled && !rawSig) {
+            if (alg1Enabled && !rawSig && !isSideways) {
                 const fvg = getFVG(j);
                 const trendUp = ema200[j] && c.close > ema200[j];
                 const trendDown = ema200[j] && c.close < ema200[j];
