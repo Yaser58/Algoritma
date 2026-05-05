@@ -2,11 +2,49 @@ let markers = [];
 let lastSignalTime = 0;
 
 /**
- * ELITE TRADING ENGINE - V4 (High Probability Edition)
- * Hedef: 10 işlemden 7+ kârlı sonuç (Backtest odaklı optimizasyon)
+ * ICT INNER CIRCLE TRADING ENGINE - V5
+ * Research Based: Liquidity Sweeps, Market Structure Shift (MSS), Fair Value Gaps (FVG)
  */
+
+// --- ICT HELPER FUNCTIONS ---
+
+function isSwingHigh(index, lookback = 2) {
+    if (index < lookback || index > candles.length - lookback - 1) return false;
+    const h = candles[index].high;
+    for (let i = 1; i <= lookback; i++) {
+        if (candles[index - i].high >= h || candles[index + i].high > h) return false;
+    }
+    return true;
+}
+
+function isSwingLow(index, lookback = 2) {
+    if (index < lookback || index > candles.length - lookback - 1) return false;
+    const l = candles[index].low;
+    for (let i = 1; i <= lookback; i++) {
+        if (candles[index - i].low <= l || candles[index + i].low < l) return false;
+    }
+    return true;
+}
+
+function getFVG(index) {
+    if (index < 2) return null;
+    const c1 = candles[index - 2];
+    const c2 = candles[index - 1];
+    const c3 = candles[index];
+
+    // Bullish FVG (Gap between C1 High and C3 Low)
+    if (c3.low > c1.high) {
+        return { type: 'BULLISH', top: c3.low, bottom: c1.high };
+    }
+    // Bearish FVG (Gap between C1 Low and C3 High)
+    if (c3.high < c1.low) {
+        return { type: 'BEARISH', top: c1.low, bottom: c3.high };
+    }
+    return null;
+}
+
 function calcInd() {
-    if (candles.length < 100) return; // Daha uzun geçmiş onayı
+    if (candles.length < 100) return;
     try {
         const h = +document.getElementById('kH').value;
         const a = +document.getElementById('kA').value;
@@ -15,15 +53,13 @@ function calcInd() {
 
         const closes = candles.map(c => c.close);
         
-        // --- İLERİ SEVİYE GÖSTERGE SETİ ---
+        // Mantained Indicators for Visuals
         const kernel = kReg(closes, h, a);
         const rsiBlue = calcRSI(closes, r2Len);
         const rsiWhite = calcRSI(closes, r1Len);
-        const atr = calcATR(candles, 14); 
-        const ema50 = calcEMA(closes, 50);   // Orta vadeli trend
-        const ema200 = calcEMA(closes, 200); // Ana rejim
+        const ema200 = calcEMA(closes, 200);
 
-        // Grafik Verilerini Güncelle
+        // Update Chart Data (Visuals must stay same)
         const kPoints = [], r1Points = [], r2Points = [];
         for (let i = 0; i < candles.length; i++) {
             const t = candles[i].time;
@@ -46,50 +82,66 @@ function calcInd() {
         const alg1Enabled = document.getElementById('alg1E').checked;
         const alg2Enabled = document.getElementById('alg2E').checked;
 
+        // ICT State Tracking
+        let lastSwingHigh = 0;
+        let lastSwingLow = 0;
+        let sweepLowIndex = -1;
+        let sweepHighIndex = -1;
+
         for (let j = 50; j < candles.length; j++) {
             const c = candles[j];
-            const p = candles[j-1];
-            const kVal = kernel[j];
             
+            // Track Swing Points for Liquidity Levels (lookback 3 for stability)
+            if (isSwingHigh(j - 3, 3)) lastSwingHigh = candles[j - 3].high;
+            if (isSwingLow(j - 3, 3)) lastSwingLow = candles[j - 3].low;
+
             let rawSig = null;
             let algName = "";
 
-            // --- ALGORİTMA 2: QUANT-MASTER V4 (HIGH PROBABILITY) ---
+            // --- ICT ALGORITHM: BREAD & BUTTER (MSS + FVG) ---
             if (alg2Enabled) {
-                // 1. TREND REJİMİ (50/200 Golden/Death Cross Onayı)
-                const isGoldenZone = ema50[j] > ema200[j] && c.close > ema50[j];
-                const isDeathZone = ema50[j] < ema200[j] && c.close < ema50[j];
-                
-                // 2. KERNEL EĞİM SÜREKLİLİĞİ (Son 3 mum aynı yöne bakmalı)
-                const kUp = kernel[j] > kernel[j-1] && kernel[j-1] > kernel[j-2] && kernel[j-2] > kernel[j-3];
-                const kDown = kernel[j] < kernel[j-1] && kernel[j-1] < kernel[j-2] && kernel[j-2] < kernel[j-3];
-                
-                // 3. MOMENTUM BARAJI (RSI 55/45 Sınırı)
-                const rsiBull = rsiBlue[j] > 55 && rsiBlue[j] > rsiBlue[j-1];
-                const rsiBear = rsiBlue[j] < 45 && rsiBlue[j] < rsiBlue[j-1];
+                // 1. Check for Liquidity Sweeps (Price takes recent swing)
+                if (lastSwingLow !== 0 && c.low < lastSwingLow) sweepLowIndex = j;
+                if (lastSwingHigh !== 0 && c.high > lastSwingHigh) sweepHighIndex = j;
 
-                // 4. VOLATİLİTE ONAYI (Sıkışma olmamalı)
-                const volOk = atr[j] > (atr[j-1] * 0.95);
+                // 2. Look for Market Structure Shift (MSS) after Sweep
+                // Sweep must have happened within the last 20 candles
+                const validSweepLow = sweepLowIndex !== -1 && (j - sweepLowIndex) < 20;
+                const validSweepHigh = sweepHighIndex !== -1 && (j - sweepHighIndex) < 20;
 
-                if (isGoldenZone && kUp && rsiBull && c.close > kVal && c.close > c.open && volOk) {
-                    rawSig = 'BUY'; algName = 'QUANT-V4';
-                } else if (isDeathZone && kDown && rsiBear && c.close < kVal && c.close < c.open && volOk) {
-                    rawSig = 'SELL'; algName = 'QUANT-V4';
+                // Bullish MSS: Price breaks previous swing high after taking low liquidity
+                const bullishMSS = validSweepLow && c.close > lastSwingHigh && lastSwingHigh !== 0;
+                // Bearish MSS: Price breaks previous swing low after taking high liquidity
+                const bearishMSS = validSweepHigh && c.close < lastSwingLow && lastSwingLow !== 0;
+
+                // 3. FVG Confirmation (Displacement)
+                const fvg = getFVG(j);
+
+                if (bullishMSS && fvg && fvg.type === 'BULLISH') {
+                    rawSig = 'BUY'; algName = 'ICT-2022';
+                    sweepLowIndex = -1; // Reset
+                } else if (bearishMSS && fvg && fvg.type === 'BEARISH') {
+                    rawSig = 'SELL'; algName = 'ICT-2022';
+                    sweepHighIndex = -1; // Reset
                 }
             }
 
-            // --- ALGORİTMA 1: PRO-V3 (Yedek Filtreli) ---
+            // --- ICT SCALP: FVG + TREND ALIGNMENT ---
             if (alg1Enabled && !rawSig) {
-                const ema100 = calcEMA(closes, 100)[j];
-                if (ema100 && c.close > ema100 && kernel[j] > kernel[j-1] && rsiBlue[j] > rsiWhite[j] && c.close > c.open) {
-                    rawSig = 'BUY'; algName = 'ALG-1';
-                } else if (ema100 && c.close < ema100 && kernel[j] < kernel[j-1] && rsiBlue[j] < rsiWhite[j] && c.close < c.open) {
-                    rawSig = 'SELL'; algName = 'ALG-1';
+                const fvg = getFVG(j);
+                const trendUp = ema200[j] && c.close > ema200[j];
+                const trendDown = ema200[j] && c.close < ema200[j];
+
+                // FVG must be fresh (created in last 3 candles)
+                if (fvg && fvg.type === 'BULLISH' && trendUp && kernel[j] > kernel[j-1]) {
+                    rawSig = 'BUY'; algName = 'ICT-SCALP';
+                } else if (fvg && fvg.type === 'BEARISH' && trendDown && kernel[j] < kernel[j-1]) {
+                    rawSig = 'SELL'; algName = 'ICT-SCALP';
                 }
             }
 
-            // SİNYAL İNFAZ
-            if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 15) {
+            // SIGNAL EXECUTION
+            if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 12) {
                 lastSigType = rawSig;
                 lastSigIndex = j;
                 const isBuy = rawSig === 'BUY';
@@ -120,5 +172,6 @@ function calcInd() {
         const logEl = document.getElementById('lL');
         if (logEl) logEl.innerHTML = newLogs.slice(0, 50).join('');
 
-    } catch(e) { console.error("High-Prob Strategy Error:", e); }
+    } catch(e) { console.error("ICT Strategy Error:", e); }
 }
+
