@@ -1,3 +1,14 @@
+// GLOBAL DEĞİŞKENLER (Tüm scriptler erişebilsin diye en başta tanımlıyoruz)
+var chart, cS, kernelSeries, r1S, r2S, topBoxSeries, bottomBoxSeries;
+var ws=null, candles=[];
+var bal=100, pnlT=0, trd=0, pos=null, cp=0;
+var isHistLoaded = false;
+var hbCount = 0;
+var lastWsMsgTime = 0;
+var currentPrecision = 2;
+var lastCalcTime = 0;
+var lastSignalTimeGlobal = 0;
+
 function calcRMA(data, length) {
     const rma = new Array(data.length).fill(null);
     let sum = 0, count = 0;

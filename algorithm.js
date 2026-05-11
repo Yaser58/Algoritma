@@ -192,72 +192,80 @@ function calcInd() {
         cS.setMarkers(newMarkers);
         
         // --- SL/TP KUTULARI ÇİZİMİ ---
-        const tpBoxData = [];
-        const slBoxData = [];
-        
-        newMarkers.forEach((m, idx) => {
-            const startIdx = candles.findIndex(c => c.time === m.time);
-            if (startIdx === -1) return;
+        try {
+            const topBoxData = [];
+            const bottomBoxData = [];
             
-            const entry = candles[startIdx].close;
-            let endIdx = candles.length - 1;
-            
-            // Bir sonraki sinyale kadar veya SL/TP çarpana kadar tara
-            const nextMarker = newMarkers[idx + 1];
-            let limitIdx = candles.length - 1;
-            if (nextMarker) {
-                const nIdx = candles.findIndex(c => c.time === nextMarker.time);
-                if (nIdx !== -1) limitIdx = nIdx - 1; // Bir sonraki sinyalden hemen öncesi
-            }
-            
-            for (let k = startIdx + 1; k <= limitIdx; k++) {
-                const ck = candles[k];
-                if (m.side === 'BUY') {
-                    if (ck.low <= m.sl || ck.high >= m.tp) { endIdx = k; break; }
-                } else {
-                    if (ck.high >= m.sl || ck.low <= m.tp) { endIdx = k; break; }
+            newMarkers.forEach((m, idx) => {
+                const startIdx = candles.findIndex(c => c.time === m.time);
+                if (startIdx === -1) return;
+                
+                const entry = candles[startIdx].close;
+                let endIdx = candles.length - 1;
+                
+                const nextMarker = newMarkers[idx + 1];
+                let limitIdx = candles.length - 1;
+                if (nextMarker) {
+                    const nIdx = candles.findIndex(c => c.time === nextMarker.time);
+                    if (nIdx !== -1) limitIdx = nIdx - 1;
                 }
-                endIdx = k;
-            }
+                
+                for (let k = startIdx + 1; k <= limitIdx; k++) {
+                    const ck = candles[k];
+                    if (m.side === 'BUY') {
+                        if (ck.low <= m.sl || ck.high >= m.tp) { endIdx = k; break; }
+                    } else {
+                        if (ck.high >= m.sl || ck.low <= m.tp) { endIdx = k; break; }
+                    }
+                    endIdx = k;
+                }
+                
+                if (endIdx > limitIdx) endIdx = limitIdx;
+
+                for (let k = startIdx; k <= endIdx; k++) {
+                    const t = candles[k].time;
+                    const topPrice = m.side === 'BUY' ? m.tp : m.sl;
+                    const bottomPrice = m.side === 'BUY' ? m.sl : m.tp;
+
+                    topBoxData.push({
+                        time: t,
+                        open: topPrice, close: entry,
+                        high: Math.max(topPrice, entry), low: Math.min(topPrice, entry)
+                    });
+                    
+                    bottomBoxData.push({
+                        time: t,
+                        open: entry, close: bottomPrice,
+                        high: Math.max(entry, bottomPrice), low: Math.min(entry, bottomPrice)
+                    });
+                }
+            });
+
+            const filterData = (data) => {
+                const seen = new Set();
+                return data.filter(d => {
+                    if (seen.has(d.time)) return false;
+                    seen.add(d.time);
+                    return true;
+                }).sort((a,b) => a.time - b.time);
+            };
             
-            // LimitIdx'i aşma
-            if (endIdx > limitIdx) endIdx = limitIdx;
-
-            // Kutu verilerini oluştur
-            for (let k = startIdx; k <= endIdx; k++) {
-                const t = candles[k].time;
-                
-                const topPrice = m.side === 'BUY' ? m.tp : m.sl;
-                const bottomPrice = m.side === 'BUY' ? m.sl : m.tp;
-
-                // Üst Kutu (Gri)
-                topBoxData.push({
-                    time: t,
-                    open: topPrice, close: entry,
-                    high: Math.max(topPrice, entry), low: Math.min(topPrice, entry)
-                });
-                
-                // Alt Kutu (Mavi)
-                bottomBoxData.push({
-                    time: t,
-                    open: entry, close: bottomPrice,
-                    high: Math.max(entry, bottomPrice), low: Math.min(entry, bottomPrice)
-                });
+            if (topBoxSeries) topBoxSeries.setData(filterData(topBoxData));
+            if (bottomBoxSeries) bottomBoxSeries.setData(filterData(bottomBoxData));
+            
+            // Hata tespiti için küçük bir log (sL kısmına)
+            if (newMarkers.length > 0) {
+                const debugEl = document.getElementById('sL');
+                if (debugEl) {
+                    const lastIdx = newMarkers.length - 1;
+                    const m = newMarkers[lastIdx];
+                    debugEl.innerHTML = `<div style="color:var(--green);font-size:0.6rem">KUTU AKTİF: ${newMarkers.length} Sinyal | Veri: ${topBoxData.length}</div>` + debugEl.innerHTML.substring(0, 500);
+                }
             }
-        });
-
-        // Zamanları benzersiz ve sıralı yap (Lightweight Charts zorunluluğu)
-        const filterData = (data) => {
-            const seen = new Set();
-            return data.filter(d => {
-                if (seen.has(d.time)) return false;
-                seen.add(d.time);
-                return true;
-            }).sort((a,b) => a.time - b.time);
-        };
-        
-        if (topBoxSeries) topBoxSeries.setData(filterData(topBoxData));
-        if (bottomBoxSeries) bottomBoxSeries.setData(filterData(bottomBoxData));
+        } catch (err) {
+            console.error("Box Draw Error:", err);
+            sLog("KUTU ÇİZİM HATASI: " + err.message);
+        }
 
         const logEl = document.getElementById('lL');
         if (logEl) logEl.innerHTML = newLogs.slice(0, 50).join('');
