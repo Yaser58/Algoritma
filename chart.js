@@ -12,6 +12,24 @@ function buildChart(){
     kernelSeries=chart.addLineSeries({lineWidth:2,lastValueVisible:false,priceLineVisible:false});
     r1S=chart.addLineSeries({color:'#ffffff',lineWidth:2,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
     r2S=chart.addLineSeries({color:'#4444ff',lineWidth:1,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
+    
+    // SL/TP Kutuları için özel seriler (Kutu görünümü için mum grafiği kullanıyoruz)
+    topBoxSeries = chart.addCandlestickSeries({
+        upColor: 'rgba(120, 123, 134, 0.35)', 
+        downColor: 'rgba(120, 123, 134, 0.35)',
+        borderVisible: false,
+        wickVisible: false,
+        lastValueVisible: false,
+        priceLineVisible: false
+    });
+    bottomBoxSeries = chart.addCandlestickSeries({
+        upColor: 'rgba(41, 98, 255, 0.35)',
+        downColor: 'rgba(41, 98, 255, 0.35)',
+        borderVisible: false,
+        wickVisible: false,
+        lastValueVisible: false,
+        priceLineVisible: false
+    });
     chart.priceScale('rsi').applyOptions({autoScale:true,scaleMargins:{top:0.78,bottom:0}});
     new ResizeObserver(()=>chart.resize(box.clientWidth,box.clientHeight)).observe(box);
 }

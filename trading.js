@@ -1,5 +1,3 @@
-let slLine = null, tpLine = null;
-
 function updPnl(){
     if(!pos)return;
     const pnl=pos.t==='BUY'?(cp-pos.e)*pos.a:(pos.e-cp)*pos.a;
@@ -28,12 +26,6 @@ function openP(t){
     document.getElementById('clB').style.display='block';
     document.getElementById('clB').innerText=t+' KAPAT';
     sLog(`POZ AÇILDI: ${t} @ ${cp.toFixed(2)} | TP: ${tp.toFixed(2)} SL: ${sl.toFixed(2)}`);
-
-    // Grafik üzerinde çizgileri göster
-    if (cS) {
-        slLine = cS.createPriceLine({ price: sl, color: '#ff4444', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'STOP LOSS (%2)' });
-        tpLine = cS.createPriceLine({ price: tp, color: '#00ff41', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'ICT TAKE PROFIT (%6)' });
-    }
 }
 
 function closeP(){
@@ -49,9 +41,6 @@ function closeP(){
     document.getElementById('pV').innerText='$0.00';
     document.getElementById('pV').style.color='#fff';
     
-    if(slLine) { cS.removePriceLine(slLine); slLine = null; }
-    if(tpLine) { cS.removePriceLine(tpLine); tpLine = null; }
-
     pos=null; document.getElementById('clB').style.display='none';
     sLog('POZ KAPANDI. PNL: '+pnl.toFixed(2));
 }

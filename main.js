@@ -1,6 +1,6 @@
 const PAIRS=['BTCUSDT','ETHUSDT','FILUSDT','ENAUSDT','ADAUSDT','DOGEUSDT','XRPUSDT'];
 let pair='BTCUSDT', tf='5m';
-let chart, cS, kernelSeries, r1S, r2S;
+let chart, cS, kernelSeries, r1S, r2S, topBoxSeries, bottomBoxSeries;
 let ws=null, candles=[];
 let bal=100, pnlT=0, trd=0, pos=null, cp=0;
 let isHistLoaded = false;

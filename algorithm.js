@@ -190,6 +190,62 @@ function calcInd() {
         }
 
         cS.setMarkers(newMarkers);
+        
+        // --- SL/TP KUTULARI ÇİZİMİ ---
+        const tpBoxData = [];
+        const slBoxData = [];
+        
+        newMarkers.forEach((m, idx) => {
+            const startIdx = candles.findIndex(c => c.time === m.time);
+            if (startIdx === -1) return;
+            
+            const entry = candles[startIdx].close;
+            let endIdx = Math.min(startIdx + 50, candles.length - 1); // Varsayılan 50 mum
+            
+            // Bir sonraki sinyale kadar veya SL/TP çarpana kadar tara
+            const nextMarker = newMarkers[idx + 1];
+            let limitIdx = candles.length - 1;
+            if (nextMarker) {
+                const nIdx = candles.findIndex(c => c.time === nextMarker.time);
+                if (nIdx !== -1) limitIdx = nIdx;
+            }
+            
+            for (let k = startIdx + 1; k <= limitIdx; k++) {
+                const ck = candles[k];
+                if (m.side === 'BUY') {
+                    if (ck.low <= m.sl || ck.high >= m.tp) { endIdx = k; break; }
+                } else {
+                    if (ck.high >= m.sl || ck.low <= m.tp) { endIdx = k; break; }
+                }
+                endIdx = k;
+            }
+            
+            // Kutu verilerini oluştur
+            for (let k = startIdx; k <= endIdx; k++) {
+                const t = candles[k].time;
+                
+                const topPrice = m.side === 'BUY' ? m.tp : m.sl;
+                const bottomPrice = m.side === 'BUY' ? m.sl : m.tp;
+
+                // Üst Kutu (Gri) - Her zaman entry'nin üstü
+                topBoxData.push({
+                    time: t,
+                    open: topPrice, close: entry,
+                    high: Math.max(topPrice, entry), low: Math.min(topPrice, entry)
+                });
+                
+                // Alt Kutu (Mavi) - Her zaman entry'nin altı
+                bottomBoxData.push({
+                    time: t,
+                    open: entry, close: bottomPrice,
+                    high: Math.max(entry, bottomPrice), low: Math.min(entry, bottomPrice)
+                });
+            }
+        });
+        
+        if (topBoxSeries) topBoxSeries.setData(topBoxData);
+        if (bottomBoxSeries) bottomBoxSeries.setData(bottomBoxData);
+
         const logEl = document.getElementById('lL');
         if (logEl) logEl.innerHTML = newLogs.slice(0, 50).join('');
 
