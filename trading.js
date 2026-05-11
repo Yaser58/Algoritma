@@ -1,3 +1,5 @@
+let slLine = null, tpLine = null;
+
 function updPnl(){
     if(!pos)return;
     const pnl=pos.t==='BUY'?(cp-pos.e)*pos.a:(pos.e-cp)*pos.a;
@@ -6,15 +8,32 @@ function updPnl(){
         el.innerText=(pnl>=0?'+':'')+'$'+pnl.toFixed(2);
         el.style.color=pnl>=0?'#00ff41':'#ff0000';
     }
+
+    // Auto-close check for SL/TP
+    if (pos.t === 'BUY') {
+        if (cp <= pos.sl) { sLog('STOP LOSS ÇALIŞTI (SELL @ ' + cp.toFixed(2) + ')'); closeP(); }
+        else if (cp >= pos.tp) { sLog('KAR AL ÇALIŞTI (SELL @ ' + cp.toFixed(2) + ')'); closeP(); }
+    } else {
+        if (cp >= pos.sl) { sLog('STOP LOSS ÇALIŞTI (BUY @ ' + cp.toFixed(2) + ')'); closeP(); }
+        else if (cp <= pos.tp) { sLog('KAR AL ÇALIŞTI (BUY @ ' + cp.toFixed(2) + ')'); closeP(); }
+    }
 }
 
 function openP(t){
     if(pos||cp===0)return;
-    pos={t,e:cp,a:bal/cp}; trd++;
+    const sl = t==='BUY' ? cp * 0.98 : cp * 1.02;
+    const tp = t==='BUY' ? cp * 1.06 : cp * 0.94;
+    pos={t, e:cp, a:bal/cp, sl, tp}; trd++;
     document.getElementById('tC').innerText=trd;
     document.getElementById('clB').style.display='block';
     document.getElementById('clB').innerText=t+' KAPAT';
-    sLog('POZ AÇILDI: '+t+' @ '+cp);
+    sLog(`POZ AÇILDI: ${t} @ ${cp.toFixed(2)} | TP: ${tp.toFixed(2)} SL: ${sl.toFixed(2)}`);
+
+    // Grafik üzerinde çizgileri göster
+    if (cS) {
+        slLine = cS.createPriceLine({ price: sl, color: '#ff4444', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'STOP LOSS (%2)' });
+        tpLine = cS.createPriceLine({ price: tp, color: '#00ff41', lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: 'ICT TAKE PROFIT (%6)' });
+    }
 }
 
 function closeP(){
@@ -29,6 +48,10 @@ function closeP(){
     }
     document.getElementById('pV').innerText='$0.00';
     document.getElementById('pV').style.color='#fff';
+    
+    if(slLine) { cS.removePriceLine(slLine); slLine = null; }
+    if(tpLine) { cS.removePriceLine(tpLine); tpLine = null; }
+
     pos=null; document.getElementById('clB').style.display='none';
     sLog('POZ KAPANDI. PNL: '+pnl.toFixed(2));
 }
@@ -55,46 +78,73 @@ function swP(p){
  * Grafikteki sinyaller üzerinden simülasyon yapar.
  */
 function runBacktest() {
-    const markers = cS.markers(); // Candlestick series üzerinden sinyalleri al
-    if (!markers || markers.length < 2) {
+    const markers = cS.markers(); 
+    if (!markers || markers.length < 1) {
         alert("Backtest için yeterli sinyal yok! Lütfen algoritmaların açık olduğundan emin olun.");
         return;
     }
 
-    let balance = 100; // Başlangıç bütçesi $100
+    let balance = 100; 
     let trades = 0;
-    let currentPos = null; 
-    let entryPrice = 0;
+    let currentPos = null; // { type, entry, sl, tp }
 
-    // Sinyalleri zamana göre sırala
-    const sortedMarkers = [...markers].sort((a,b) => a.time - b.time);
+    // Sinyalleri zamana göre haritala
+    const sigMap = {};
+    markers.forEach(m => { sigMap[m.time] = m; });
 
-    sortedMarkers.forEach(m => {
-        const candle = candles.find(c => c.time === m.time);
-        if (!candle) return;
+    for (let i = 0; i < candles.length; i++) {
+        const c = candles[i];
 
-        const price = candle.close;
+        // 1. SL/TP Kontrolü
+        if (currentPos) {
+            let hit = false;
+            let pnl = 0;
 
-        if (m.text === 'LONG') {
-            // Eğer Short'taysak kapat ve kârı ekle
-            if (currentPos === 'SHORT') {
-                const pnl = (entryPrice - price) / entryPrice;
+            if (currentPos.type === 'BUY') {
+                if (c.low <= currentPos.sl) {
+                    pnl = (currentPos.sl - currentPos.entry) / currentPos.entry;
+                    hit = true;
+                } else if (c.high >= currentPos.tp) {
+                    pnl = (currentPos.tp - currentPos.entry) / currentPos.entry;
+                    hit = true;
+                }
+            } else {
+                if (c.high >= currentPos.sl) {
+                    pnl = (currentPos.entry - currentPos.sl) / currentPos.entry;
+                    hit = true;
+                } else if (c.low <= currentPos.tp) {
+                    pnl = (currentPos.entry - currentPos.tp) / currentPos.entry;
+                    hit = true;
+                }
+            }
+
+            if (hit) {
                 balance += (balance * pnl);
                 trades++;
+                currentPos = null;
             }
-            currentPos = 'LONG';
-            entryPrice = price;
-        } else if (m.text === 'SHORT') {
-            // Eğer Long'taysak kapat ve kârı ekle
-            if (currentPos === 'LONG') {
-                const pnl = (price - entryPrice) / entryPrice;
-                balance += (balance * pnl);
-                trades++;
-            }
-            currentPos = 'SHORT';
-            entryPrice = price;
         }
-    });
+
+        // 2. Yeni Sinyal Kontrolü
+        const sig = sigMap[c.time];
+        if (sig) {
+            // Eğer açık pozisyon varsa yeni sinyal gelince kapat (Trend değişimi)
+            if (currentPos) {
+                const pnl = currentPos.type === 'BUY' 
+                    ? (c.close - currentPos.entry) / currentPos.entry 
+                    : (currentPos.entry - c.close) / currentPos.entry;
+                balance += (balance * pnl);
+                trades++;
+            }
+
+            currentPos = {
+                type: sig.side || (sig.text.includes('LONG') ? 'BUY' : 'SELL'),
+                entry: c.close,
+                sl: sig.sl,
+                tp: sig.tp
+            };
+        }
+    }
 
     const netProfit = balance - 100;
     const profitPercent = ((balance - 100) / 100 * 100).toFixed(2);
@@ -107,7 +157,7 @@ function runBacktest() {
         resEl.style.display = 'block';
         statsEl.innerHTML = `
             <div style="font-weight:bold;margin-bottom:8px;border-bottom:1px solid #333;color:var(--green)">
-                📊 BACKTEST RAPORU
+                📊 ICT BACKTEST RAPORU (SL/TP)
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:4px">
                 <span>Başlangıç:</span> <span>$100.00</span>
@@ -122,7 +172,7 @@ function runBacktest() {
                 <span>Yüzde Getiri:</span> <span>%${profitPercent}</span>
             </div>
             <div style="font-size:0.6rem;opacity:0.5;margin-top:8px;font-style:italic">
-                * Grafikteki güncel sinyaller baz alınmıştır.
+                * Stop Loss: %2 | Take Profit: ICT %6
             </div>
         `;
     }

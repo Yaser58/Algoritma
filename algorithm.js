@@ -160,13 +160,20 @@ function calcInd() {
                 const isBuy = rawSig === 'BUY';
                 const color = isBuy ? '#00ff41' : '#ff0000';
                 
+                // SL %2, TP ICT format (%6 - 1:3 RR)
+                const sl = isBuy ? c.close * 0.98 : c.close * 1.02;
+                const tp = isBuy ? c.close * 1.06 : c.close * 0.94;
+
                 newMarkers.push({
                     time: c.time,
                     position: isBuy ? 'belowBar' : 'aboveBar',
                     color: color,
                     shape: isBuy ? 'arrowUp' : 'arrowDown',
-                    text: isBuy ? 'LONG' : 'SHORT',
-                    size: 2
+                    text: `${isBuy ? 'LONG' : 'SHORT'} TP:${tp.toFixed(1)} SL:${sl.toFixed(1)}`,
+                    size: 2,
+                    sl: sl,
+                    tp: tp,
+                    side: rawSig
                 });
                 
                 if (j >= candles.length - 50) {
@@ -175,6 +182,7 @@ function calcInd() {
                         <span>[${timeStr}]</span>
                         <span style="font-weight:bold">${algName}</span>
                         <span>${isBuy ? 'LONG' : 'SHORT'}</span>
+                        <span style="font-size:0.8em; opacity:0.8">TP: ${tp.toFixed(2)} | SL: ${sl.toFixed(2)}</span>
                         <span>$${c.close.toFixed(currentPrecision)}</span>
                     </div>`);
                 }
