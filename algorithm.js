@@ -169,7 +169,7 @@ function calcInd() {
                     position: isBuy ? 'belowBar' : 'aboveBar',
                     color: color,
                     shape: isBuy ? 'arrowUp' : 'arrowDown',
-                    text: `${isBuy ? 'LONG' : 'SHORT'} TP:${tp.toFixed(1)} SL:${sl.toFixed(1)}`,
+                    text: isBuy ? 'LONG' : 'SHORT',
                     size: 2,
                     sl: sl,
                     tp: tp,
@@ -200,14 +200,14 @@ function calcInd() {
             if (startIdx === -1) return;
             
             const entry = candles[startIdx].close;
-            let endIdx = Math.min(startIdx + 50, candles.length - 1); // Varsayılan 50 mum
+            let endIdx = candles.length - 1;
             
             // Bir sonraki sinyale kadar veya SL/TP çarpana kadar tara
             const nextMarker = newMarkers[idx + 1];
             let limitIdx = candles.length - 1;
             if (nextMarker) {
                 const nIdx = candles.findIndex(c => c.time === nextMarker.time);
-                if (nIdx !== -1) limitIdx = nIdx;
+                if (nIdx !== -1) limitIdx = nIdx - 1; // Bir sonraki sinyalden hemen öncesi
             }
             
             for (let k = startIdx + 1; k <= limitIdx; k++) {
@@ -220,6 +220,9 @@ function calcInd() {
                 endIdx = k;
             }
             
+            // LimitIdx'i aşma
+            if (endIdx > limitIdx) endIdx = limitIdx;
+
             // Kutu verilerini oluştur
             for (let k = startIdx; k <= endIdx; k++) {
                 const t = candles[k].time;
@@ -227,14 +230,14 @@ function calcInd() {
                 const topPrice = m.side === 'BUY' ? m.tp : m.sl;
                 const bottomPrice = m.side === 'BUY' ? m.sl : m.tp;
 
-                // Üst Kutu (Gri) - Her zaman entry'nin üstü
+                // Üst Kutu (Gri)
                 topBoxData.push({
                     time: t,
                     open: topPrice, close: entry,
                     high: Math.max(topPrice, entry), low: Math.min(topPrice, entry)
                 });
                 
-                // Alt Kutu (Mavi) - Her zaman entry'nin altı
+                // Alt Kutu (Mavi)
                 bottomBoxData.push({
                     time: t,
                     open: entry, close: bottomPrice,
@@ -242,9 +245,19 @@ function calcInd() {
                 });
             }
         });
+
+        // Zamanları benzersiz ve sıralı yap (Lightweight Charts zorunluluğu)
+        const filterData = (data) => {
+            const seen = new Set();
+            return data.filter(d => {
+                if (seen.has(d.time)) return false;
+                seen.add(d.time);
+                return true;
+            }).sort((a,b) => a.time - b.time);
+        };
         
-        if (topBoxSeries) topBoxSeries.setData(topBoxData);
-        if (bottomBoxSeries) bottomBoxSeries.setData(bottomBoxData);
+        if (topBoxSeries) topBoxSeries.setData(filterData(topBoxData));
+        if (bottomBoxSeries) bottomBoxSeries.setData(filterData(bottomBoxData));
 
         const logEl = document.getElementById('lL');
         if (logEl) logEl.innerHTML = newLogs.slice(0, 50).join('');
