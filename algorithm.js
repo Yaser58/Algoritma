@@ -167,12 +167,16 @@ function calcInd() {
                 const risk = Math.abs(c.close - sl);
                 const tp = isBuy ? c.close + risk * 2 : c.close - risk * 2;
 
+                const isLive = (j === candles.length - 1);
+                const markerText = (isBuy ? 'LONG' : 'SHORT') + (isLive ? '?' : '');
+                const markerColor = isLive ? (isBuy ? 'rgba(0, 255, 65, 0.5)' : 'rgba(255, 0, 0, 0.5)') : color;
+
                 newMarkers.push({
                     time: c.time,
                     position: isBuy ? 'belowBar' : 'aboveBar',
-                    color: color,
+                    color: markerColor,
                     shape: isBuy ? 'arrowUp' : 'arrowDown',
-                    text: isBuy ? 'LONG' : 'SHORT',
+                    text: markerText,
                     size: 2,
                     sl: sl,
                     tp: tp,
@@ -181,9 +185,10 @@ function calcInd() {
                 
                 if (j >= candles.length - 50) {
                     const timeStr = new Date(c.time * 1000).toLocaleTimeString('tr-TR');
-                    newLogs.unshift(`<div class="log-row" style="color:${color}; border-left: 3px solid ${color}; padding-left:10px">
+                    const logLabel = isLive ? 'YENİ SİNYAL (BEKLENİYOR)' : algName;
+                    newLogs.unshift(`<div class="log-row" style="color:${color}; border-left: 3px solid ${color}; padding-left:10px; ${isLive ? 'opacity:0.6; font-style:italic' : ''}">
                         <span>[${timeStr}]</span>
-                        <span style="font-weight:bold">${algName}</span>
+                        <span style="font-weight:bold">${logLabel}</span>
                         <span>${isBuy ? 'LONG' : 'SHORT'}</span>
                         <span style="font-size:0.8em; opacity:0.8">TP: ${tp.toFixed(2)} | SL: ${sl.toFixed(2)}</span>
                         <span>$${c.close.toFixed(currentPrecision)}</span>
