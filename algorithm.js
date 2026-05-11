@@ -193,8 +193,8 @@ function calcInd() {
         
         // --- SL/TP KUTULARI ÇİZİMİ ---
         try {
-            const topBoxData = [];
-            const bottomBoxData = [];
+            const profitBoxData = [];
+            const lossBoxData = [];
             
             newMarkers.forEach((m, idx) => {
                 const startIdx = candles.findIndex(c => c.time === m.time);
