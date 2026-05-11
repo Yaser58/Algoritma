@@ -1,5 +1,5 @@
 // GLOBAL DEĞİŞKENLER (Tüm scriptler erişebilsin diye en başta tanımlıyoruz)
-var chart, cS, kernelSeries, r1S, r2S, topBoxSeries, bottomBoxSeries;
+var chart, cS, kernelSeries, r1S, r2S, profitBoxSeries, lossBoxSeries;
 var ws=null, candles=[];
 var bal=100, pnlT=0, trd=0, pos=null, cp=0;
 var isHistLoaded = false;

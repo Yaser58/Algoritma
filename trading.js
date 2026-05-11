@@ -20,7 +20,7 @@ function updPnl(){
 function openP(t){
     if(pos||cp===0)return;
     const sl = t==='BUY' ? cp * 0.98 : cp * 1.02;
-    const tp = t==='BUY' ? cp * 1.06 : cp * 0.94;
+    const tp = t==='BUY' ? cp * 1.04 : cp * 0.96;
     pos={t, e:cp, a:bal/cp, sl, tp}; trd++;
     document.getElementById('tC').innerText=trd;
     document.getElementById('clB').style.display='block';
@@ -161,7 +161,7 @@ function runBacktest() {
                 <span>Yüzde Getiri:</span> <span>%${profitPercent}</span>
             </div>
             <div style="font-size:0.6rem;opacity:0.5;margin-top:8px;font-style:italic">
-                * Stop Loss: %2 | Take Profit: ICT %6
+                * Stop Loss: %2 | Take Profit: %4 (1:2 RR)
             </div>
         `;
     }

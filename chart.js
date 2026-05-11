@@ -13,18 +13,18 @@ function buildChart(){
     r1S=chart.addLineSeries({color:'#ffffff',lineWidth:2,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
     r2S=chart.addLineSeries({color:'#4444ff',lineWidth:1,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
     
-    // SL/TP Kutuları için özel seriler (Kutu görünümü için mum grafiği kullanıyoruz)
-    topBoxSeries = chart.addCandlestickSeries({
-        upColor: 'rgba(120, 123, 134, 0.35)', 
-        downColor: 'rgba(120, 123, 134, 0.35)',
+    // SL/TP Kutuları için özel seriler
+    profitBoxSeries = chart.addCandlestickSeries({
+        upColor: 'rgba(0, 255, 65, 0.2)', 
+        downColor: 'rgba(0, 255, 65, 0.2)',
         borderVisible: false,
         wickVisible: false,
         lastValueVisible: false,
         priceLineVisible: false
     });
-    bottomBoxSeries = chart.addCandlestickSeries({
-        upColor: 'rgba(41, 98, 255, 0.35)',
-        downColor: 'rgba(41, 98, 255, 0.35)',
+    lossBoxSeries = chart.addCandlestickSeries({
+        upColor: 'rgba(255, 0, 0, 0.2)',
+        downColor: 'rgba(255, 0, 0, 0.2)',
         borderVisible: false,
         wickVisible: false,
         lastValueVisible: false,

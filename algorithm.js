@@ -160,9 +160,9 @@ function calcInd() {
                 const isBuy = rawSig === 'BUY';
                 const color = isBuy ? '#00ff41' : '#ff0000';
                 
-                // SL %2, TP ICT format (%6 - 1:3 RR)
+                // SL %2, TP %4 (ICT 1:2 RR - Daha dengeli görünüm için)
                 const sl = isBuy ? c.close * 0.98 : c.close * 1.02;
-                const tp = isBuy ? c.close * 1.06 : c.close * 0.94;
+                const tp = isBuy ? c.close * 1.04 : c.close * 0.96;
 
                 newMarkers.push({
                     time: c.time,
@@ -224,19 +224,19 @@ function calcInd() {
 
                 for (let k = startIdx; k <= endIdx; k++) {
                     const t = candles[k].time;
-                    const topPrice = m.side === 'BUY' ? m.tp : m.sl;
-                    const bottomPrice = m.side === 'BUY' ? m.sl : m.tp;
 
-                    topBoxData.push({
+                    // Kar Bölgesi (Yeşil)
+                    profitBoxData.push({
                         time: t,
-                        open: topPrice, close: entry,
-                        high: Math.max(topPrice, entry), low: Math.min(topPrice, entry)
+                        open: m.tp, close: entry,
+                        high: Math.max(m.tp, entry), low: Math.min(m.tp, entry)
                     });
                     
-                    bottomBoxData.push({
+                    // Zarar Bölgesi (Kırmızı)
+                    lossBoxData.push({
                         time: t,
-                        open: entry, close: bottomPrice,
-                        high: Math.max(entry, bottomPrice), low: Math.min(entry, bottomPrice)
+                        open: m.sl, close: entry,
+                        high: Math.max(m.sl, entry), low: Math.min(m.sl, entry)
                     });
                 }
             });
@@ -250,8 +250,8 @@ function calcInd() {
                 }).sort((a,b) => a.time - b.time);
             };
             
-            if (topBoxSeries) topBoxSeries.setData(filterData(topBoxData));
-            if (bottomBoxSeries) bottomBoxSeries.setData(filterData(bottomBoxData));
+            if (profitBoxSeries) profitBoxSeries.setData(filterData(profitBoxData));
+            if (lossBoxSeries) lossBoxSeries.setData(filterData(lossBoxData));
             
             // Hata tespiti için küçük bir log (sL kısmına)
             if (newMarkers.length > 0) {
