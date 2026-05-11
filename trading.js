@@ -19,8 +19,14 @@ function updPnl(){
 
 function openP(t){
     if(pos||cp===0)return;
-    const sl = t==='BUY' ? cp * 0.98 : cp * 1.02;
-    const tp = t==='BUY' ? cp * 1.04 : cp * 0.96;
+    // ICT Dinamik SL/TP
+    let sl = t==='BUY' ? lastSwingLow : lastSwingHigh;
+    if (!sl || Math.abs(cp - sl) / cp > 0.015) {
+        sl = t==='BUY' ? cp * 0.995 : cp * 1.005;
+    }
+    const risk = Math.abs(cp - sl);
+    const tp = t==='BUY' ? cp + risk * 2 : cp - risk * 2;
+    
     pos={t, e:cp, a:bal/cp, sl, tp}; trd++;
     document.getElementById('tC').innerText=trd;
     document.getElementById('clB').style.display='block';

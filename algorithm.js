@@ -88,9 +88,7 @@ function calcInd() {
         const alg1Enabled = document.getElementById('alg1E').checked;
         const alg2Enabled = document.getElementById('alg2E').checked;
 
-        // ICT State Tracking
-        let lastSwingHigh = 0;
-        let lastSwingLow = 0;
+        // ICT State Tracking (Global değişkenler kullanılmaktadır)
         let sweepLowIndex = -1;
         let sweepHighIndex = -1;
 
@@ -154,15 +152,20 @@ function calcInd() {
             }
 
             // SIGNAL EXECUTION
-            if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 12) {
+            if (rawSig && rawSig !== lastSigType && (j - lastSigIndex) >= 20) {
                 lastSigType = rawSig;
                 lastSigIndex = j;
                 const isBuy = rawSig === 'BUY';
                 const color = isBuy ? '#00ff41' : '#ff0000';
                 
-                // SL %2, TP %4 (ICT 1:2 RR - Daha dengeli görünüm için)
-                const sl = isBuy ? c.close * 0.98 : c.close * 1.02;
-                const tp = isBuy ? c.close * 1.04 : c.close * 0.96;
+                // ICT DINAMIK SL/TP: Son Swing noktası baz alınır
+                let sl = isBuy ? lastSwingLow : lastSwingHigh;
+                // Eğer swing noktası çok uzaksa veya yoksa %0.5 fallback kullan
+                if (!sl || Math.abs(c.close - sl) / c.close > 0.015) {
+                    sl = isBuy ? c.close * 0.995 : c.close * 1.005;
+                }
+                const risk = Math.abs(c.close - sl);
+                const tp = isBuy ? c.close + risk * 2 : c.close - risk * 2;
 
                 newMarkers.push({
                     time: c.time,
@@ -224,19 +227,18 @@ function calcInd() {
 
                 for (let k = startIdx; k <= endIdx; k++) {
                     const t = candles[k].time;
+                    const tpPrice = m.tp;
+                    const slPrice = m.sl;
+                    const entryPrice = entry;
+                    if (isNaN(t) || isNaN(tpPrice) || isNaN(slPrice) || isNaN(entryPrice)) continue;
 
-                    // Kar Bölgesi (Yeşil)
                     profitBoxData.push({
-                        time: t,
-                        open: m.tp, close: entry,
-                        high: Math.max(m.tp, entry), low: Math.min(m.tp, entry)
+                        time: t, open: tpPrice, close: entryPrice,
+                        high: Math.max(tpPrice, entryPrice), low: Math.min(tpPrice, entryPrice)
                     });
-                    
-                    // Zarar Bölgesi (Kırmızı)
                     lossBoxData.push({
-                        time: t,
-                        open: m.sl, close: entry,
-                        high: Math.max(m.sl, entry), low: Math.min(m.sl, entry)
+                        time: t, open: slPrice, close: entryPrice,
+                        high: Math.max(slPrice, entryPrice), low: Math.min(slPrice, entryPrice)
                     });
                 }
             });
@@ -253,18 +255,8 @@ function calcInd() {
             if (profitBoxSeries) profitBoxSeries.setData(filterData(profitBoxData));
             if (lossBoxSeries) lossBoxSeries.setData(filterData(lossBoxData));
             
-            // Hata tespiti için küçük bir log (sL kısmına)
-            if (newMarkers.length > 0) {
-                const debugEl = document.getElementById('sL');
-                if (debugEl) {
-                    const lastIdx = newMarkers.length - 1;
-                    const m = newMarkers[lastIdx];
-                    debugEl.innerHTML = `<div style="color:var(--green);font-size:0.6rem">KUTU AKTİF: ${newMarkers.length} Sinyal | Veri: ${topBoxData.length}</div>` + debugEl.innerHTML.substring(0, 500);
-                }
-            }
         } catch (err) {
             console.error("Box Draw Error:", err);
-            sLog("KUTU ÇİZİM HATASI: " + err.message);
         }
 
         const logEl = document.getElementById('lL');

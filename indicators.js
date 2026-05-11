@@ -8,6 +8,8 @@ var lastWsMsgTime = 0;
 var currentPrecision = 2;
 var lastCalcTime = 0;
 var lastSignalTimeGlobal = 0;
+var lastSwingHigh = 0;
+var lastSwingLow = 0;
 
 function calcRMA(data, length) {
     const rma = new Array(data.length).fill(null);
