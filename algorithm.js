@@ -36,7 +36,6 @@ function detectSQP() {
     let sqpMarkers = [];
     let foundPatterns = [];
     let lastValidPattern = null;
-    let allFibData = Array.from({ length: 10 }, () => []);
 
     const levels = [2.618, 2.0, 1.618, 1.382, 1.272, 0.886, 0.786, 0.618, 0.5, 0.382];
 
@@ -49,7 +48,6 @@ function detectSQP() {
             for(let k=sIdx-1; k>Math.max(0, sIdx-15); k--) {
                 if(candles[k].low < lowestInWindow) lowestInWindow = candles[k].low;
             }
-            // %0.8 yükseliş (5m için daha stabil)
             if (sPrice < lowestInWindow * 1.008) continue; 
 
             let bottomIdx = -1;
@@ -77,7 +75,6 @@ function detectSQP() {
 
             let pIdx = -1;
             let postQLow = Infinity;
-            // Q ve P arasında en az 6 mum mesafe olmalı (üst üste binmemesi için)
             for (let j = qIdx + 6; j < Math.min(qIdx + 50, candles.length); j++) {
                 if (candles[j].low < postQLow) postQLow = candles[j].low;
                 if (postQLow < bottomPrice * 0.999) break;
@@ -89,45 +86,39 @@ function detectSQP() {
             }
 
             if (pIdx !== -1) {
-                // S, Q, P etiketlerini sadece son 300 mum içindeyse ekle (Kalabalığı önlemek için)
-                if (sIdx > candles.length - 300) {
-                    sqpMarkers.push({ time: candles[sIdx].time, position: 'aboveBar', color: '#ffffff', shape: 'arrowDown', text: 'S', size: 1 });
-                    sqpMarkers.push({ time: candles[qIdx].time, position: 'aboveBar', color: '#ffcc00', shape: 'arrowDown', text: 'Q', size: 1 });
-                    sqpMarkers.push({ time: candles[pIdx].time, position: 'aboveBar', color: '#ffcc00', shape: 'arrowDown', text: 'P', size: 1 });
+                // Etiketleri ekle (Sadece son 500 mum içindeyse)
+                if (sIdx > candles.length - 500) {
+                    sqpMarkers.push({ time: candles[sIdx].time, position: 'aboveBar', color: '#ffffff', shape: 'arrowDown', text: 'S', size: 2 });
+                    sqpMarkers.push({ time: candles[qIdx].time, position: 'aboveBar', color: '#ffcc00', shape: 'arrowDown', text: 'Q', size: 2 });
+                    sqpMarkers.push({ time: candles[pIdx].time, position: 'aboveBar', color: '#ffcc00', shape: 'arrowDown', text: 'P', size: 2 });
                 }
-
-                // Bu pattern için fibo verilerini hazırla (S'den P+35'e kadar)
-                let endK = Math.min(pIdx + 35, candles.length);
-                levels.forEach((lvl, idx) => {
-                    const val = bottomPrice + range * lvl;
-                    for(let k = sIdx; k < endK; k++) {
-                        allFibData[idx].push({ time: candles[k].time, value: val });
-                    }
-                });
-
                 lastValidPattern = { sIdx, range, bottomPrice, pIdx };
             }
         }
     }
     
-    // Tüm biriken Fibo verilerini serilere bas
-    allFibData.forEach((data, idx) => {
-        if (fibSeries && fibSeries[idx]) {
-            // Zaman damgalarına göre sırala ve kopyaları temizle (Lightweight charts kuralı)
-            const uniqueData = data.filter((v, i, a) => a.findIndex(t => t.time === v.time) === i);
-            fibSeries[idx].setData(uniqueData.sort((a,b) => a.time - b.time));
-        }
-    });
-
-    // Sinyal Üretimi (Sadece en son desen üzerinden)
+    // Sinyal ve Fibo Çizimi: Sadece en son geçerli desen için
     if (lastValidPattern) {
+        // Fibo Çizimi (S'den P+50'ye kadar düz çizgiler)
+        let endK = Math.min(lastValidPattern.pIdx + 50, candles.length);
+        levels.forEach((lvl, idx) => {
+            let pVal = lastValidPattern.bottomPrice + lastValidPattern.range * lvl;
+            let lineData = [];
+            for(let k = lastValidPattern.sIdx; k < endK; k++) {
+                lineData.push({ time: candles[k].time, value: pVal });
+            }
+            if (fibSeries && fibSeries[idx]) fibSeries[idx].setData(lineData);
+        });
+
+        // Sinyal Üretimi
         const lastCandle = candles[candles.length - 1];
         const prevCandle = candles[candles.length - 2];
         const pLevel = candles[lastValidPattern.pIdx].high;
-
         if (lastCandle.close > pLevel && prevCandle.close <= pLevel) {
             foundPatterns.push({ index: candles.length - 1, type: 'BUY', sl: lastValidPattern.bottomPrice, tp: lastValidPattern.bottomPrice + lastValidPattern.range * 1.618 });
         }
+    } else {
+        if (typeof fibSeries !== 'undefined') fibSeries.forEach(s => s.setData([]));
     }
 
     return { markers: sqpMarkers, patterns: foundPatterns };
