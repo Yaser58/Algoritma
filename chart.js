@@ -13,6 +13,19 @@ function buildChart(){
     r1S=chart.addLineSeries({color:'#ffffff',lineWidth:2,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
     r2S=chart.addLineSeries({color:'#4444ff',lineWidth:1,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
     
+    // Fibonacci Çizgileri
+    fibSeries = [];
+    const fibColors = ['#ff4444', '#4444ff', '#ff4444', '#44ff44', '#44ff44', '#ffffff', '#ff4444', '#ffff44', '#ffff44', '#ffff44'];
+    for(let i=0; i<10; i++) {
+        fibSeries.push(chart.addLineSeries({
+            color: fibColors[i],
+            lineWidth: 1,
+            lineStyle: 2, // Kesikli çizgi
+            lastValueVisible: true,
+            priceLineVisible: false
+        }));
+    }
+    
     // SL/TP Kutuları için özel seriler
     profitBoxSeries = chart.addCandlestickSeries({
         upColor: 'rgba(0, 255, 65, 0.2)', 

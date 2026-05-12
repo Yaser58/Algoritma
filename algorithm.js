@@ -26,6 +26,102 @@ function isSwingLow(index, lookback = 2) {
     return true;
 }
 
+function detectSQP() {
+    const sqpEnabled = document.getElementById('sqpE').checked;
+    if (!sqpEnabled || candles.length < 50) {
+        if (typeof fibSeries !== 'undefined') fibSeries.forEach(s => s.setData([]));
+        return { markers: [], patterns: [] }; 
+    }
+
+    let sqpMarkers = [];
+    let foundPatterns = [];
+    let lastFibUpdateIdx = -1;
+
+    const levels = [2.618, 2.0, 1.618, 1.382, 1.272, 0.886, 0.786, 0.618, 0.5, 0.382];
+
+    for (let i = 10; i < candles.length - 1; i++) {
+        if (isSwingHigh(i, 5)) {
+            let sIdx = i;
+            let sPrice = candles[sIdx].high;
+            
+            let prevLowIdx = -1;
+            for(let k=sIdx-1; k>Math.max(0, sIdx-15); k--) {
+                if(isSwingLow(k, 3)) { prevLowIdx = k; break; }
+            }
+            if(prevLowIdx === -1) continue;
+            let startPrice = candles[prevLowIdx].low;
+            if (sPrice < startPrice * 1.01) continue; 
+
+            let bottomIdx = -1;
+            let bottomPrice = Infinity;
+            for (let j = sIdx + 1; j < Math.min(sIdx + 30, candles.length); j++) {
+                if (candles[j].low < bottomPrice) {
+                    bottomPrice = candles[j].low;
+                    bottomIdx = j;
+                }
+            }
+            if (bottomIdx === -1 || bottomPrice > sPrice * 0.99) continue;
+
+            let range = sPrice - bottomPrice;
+            let qZoneLow = bottomPrice + range * 0.618;
+            let qZoneHigh = bottomPrice + range * 0.786;
+
+            let qIdx = -1;
+            for (let j = bottomIdx + 1; j < Math.min(bottomIdx + 40, candles.length); j++) {
+                if (candles[j].high >= qZoneLow && candles[j].high <= qZoneHigh * 1.02) {
+                    qIdx = j;
+                    break;
+                }
+            }
+            if (qIdx === -1) continue;
+
+            let pIdx = -1;
+            let postQLow = Infinity;
+            for (let j = qIdx + 1; j < Math.min(qIdx + 50, candles.length); j++) {
+                if (candles[j].low < postQLow) postQLow = candles[j].low;
+                if (postQLow < bottomPrice * 0.999) break;
+
+                if (j > qIdx + 2 && candles[j].high >= qZoneLow && candles[j].high <= qZoneHigh * 1.05) {
+                    pIdx = j;
+                    break;
+                }
+            }
+
+            if (pIdx !== -1) {
+                sqpMarkers.push({ time: candles[sIdx].time, position: 'aboveBar', color: '#ffffff', shape: 'arrowDown', text: 'S', size: 1.5 });
+                sqpMarkers.push({ time: candles[qIdx].time, position: 'aboveBar', color: '#ffcc00', shape: 'arrowDown', text: 'Q', size: 1.2 });
+                sqpMarkers.push({ time: candles[pIdx].time, position: 'aboveBar', color: '#ffcc00', shape: 'arrowDown', text: 'P', size: 1.2 });
+
+                lastFibUpdateIdx = pIdx;
+                const finalSIdx = sIdx;
+                const finalRange = range;
+                const finalBottom = bottomPrice;
+
+                if (lastFibUpdateIdx >= candles.length - 60) {
+                    levels.forEach((lvl, idx) => {
+                        let p = finalBottom + finalRange * lvl;
+                        let lineData = [];
+                        for(let k=finalSIdx; k < candles.length; k++) {
+                            lineData.push({ time: candles[k].time, value: p });
+                        }
+                        fibSeries[idx].setData(lineData);
+                    });
+                }
+
+                if (candles[candles.length - 1].close > candles[pIdx].high && pIdx < candles.length - 2) {
+                    foundPatterns.push({ index: candles.length - 1, type: 'BUY', sl: bottomPrice, tp: bottomPrice + range * 1.618 });
+                }
+            }
+        }
+    }
+    
+    if (lastFibUpdateIdx === -1) {
+        fibSeries.forEach(s => s.setData([]));
+    }
+
+    return { markers: sqpMarkers, patterns: foundPatterns };
+}
+
 function getFVG(index) {
     if (index < 2) return null;
     const c1 = candles[index - 2];
@@ -87,6 +183,7 @@ function calcInd() {
 
         const alg1Enabled = document.getElementById('alg1E').checked;
         const alg2Enabled = document.getElementById('alg2E').checked;
+        const sqpData = detectSQP();
 
         // ICT State Tracking (Global değişkenler kullanılmaktadır)
         let sweepLowIndex = -1;
@@ -196,6 +293,34 @@ function calcInd() {
                 }
             }
         }
+
+        // Add SQP Markers and Signals
+        newMarkers = [...newMarkers, ...sqpData.markers];
+        
+        sqpData.patterns.forEach(p => {
+            const c = candles[p.index];
+            const isLive = (p.index === candles.length - 1);
+            newMarkers.push({
+                time: c.time,
+                position: 'belowBar',
+                color: '#00ff41',
+                shape: 'arrowUp',
+                text: 'SQP LONG' + (isLive ? '?' : ''),
+                size: 2,
+                sl: p.sl,
+                tp: p.tp,
+                side: 'BUY'
+            });
+            
+            const timeStr = new Date(c.time * 1000).toLocaleTimeString('tr-TR');
+            newLogs.unshift(`<div class="log-row" style="color:#00ff41; border-left: 3px solid #00ff41; padding-left:10px;">
+                <span>[${timeStr}]</span>
+                <span style="font-weight:bold">S-Q-P STRATEJİSİ</span>
+                <span>LONG</span>
+                <span style="font-size:0.8em; opacity:0.8">TP: ${p.tp.toFixed(2)} | SL: ${p.sl.toFixed(2)}</span>
+                <span>$${c.close.toFixed(currentPrecision)}</span>
+            </div>`);
+        });
 
         cS.setMarkers(newMarkers);
         

@@ -46,7 +46,7 @@ window.addEventListener('load', ()=>{
         startWS();
     };
     
-    ['kH','kA','rs1','rs2', 'alg1E', 'alg2E'].forEach(id => {
+    ['kH','kA','rs1','rs2', 'alg1E', 'alg2E', 'sqpE'].forEach(id => {
         const el = document.getElementById(id);
         if(el) el.addEventListener('change', calcInd);
     });
