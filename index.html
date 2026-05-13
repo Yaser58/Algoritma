@@ -103,6 +103,16 @@
             <button class="tb tsell" onclick="openP('SELL')">SATIŞ AÇ</button>
             <button class="tb tclose" id="clB" style="display:none" onclick="closeP()">KAPAT</button>
         </div>
+
+        <!-- ForexFactory News Widget -->
+        <div id="ffNewsBox">
+            <div class="ff-header">
+                <span class="ff-title-main">ECONOMIC CALENDAR</span>
+                <span id="ffToggle">▲</span>
+            </div>
+            <div id="ffNewsList"></div>
+            <div id="ffLastUpdate">SON: --:--</div>
+        </div>
     </div>
     <div id="logP">
         <div class="stitle" style="padding:10px">[ İŞLEM GÜNLÜĞÜ ]</div>
@@ -116,6 +126,7 @@
 <script src="chart.js"></script>
 <script src="trading.js"></script>
 <script src="data.js"></script>
+<script src="news.js"></script>
 <script src="main.js"></script>
 
 </body>
