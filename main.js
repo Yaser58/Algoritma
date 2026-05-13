@@ -37,6 +37,20 @@ window.addEventListener('load', ()=>{
     buildP(); 
     buildChart();
     
+    // Sidebar Toggle Mantığı
+    const sL = document.getElementById('sidebar');
+    const sR = document.getElementById('rightSidebar');
+    const bCL = document.getElementById('closeLeft');
+    const bCR = document.getElementById('closeRight');
+    const bOL = document.getElementById('openLeft');
+    const bOR = document.getElementById('openRight');
+
+    bCL.onclick = () => { sL.classList.add('collapsed'); bOL.style.display = 'block'; };
+    bOL.onclick = () => { sL.classList.remove('collapsed'); bOL.style.display = 'none'; };
+    
+    bCR.onclick = () => { sR.classList.add('collapsed'); bOR.style.display = 'block'; };
+    bOR.onclick = () => { sR.classList.remove('collapsed'); bOR.style.display = 'none'; };
+
     document.getElementById('tfS').onchange = function(){
         tf = this.value; 
         candles = []; 

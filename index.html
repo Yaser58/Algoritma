@@ -17,7 +17,10 @@
 <audio id="alertSound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
 
 <div id="sidebar">
-    <div class="logo">> Yaser ER Algoritma_</div>
+    <div class="logo">
+        <span>> Yaser ER Algoritma_</span>
+        <button id="closeLeft" class="toggle-btn">◀</button>
+    </div>
     <div class="section">
         <div class="stitle">[ PARİTE ]</div>
         <div class="pgrid" id="pG"></div>
@@ -77,6 +80,9 @@
     </div>
 </div>
 
+<button id="openLeft" class="floating-toggle" style="left:0;display:none">▶</button>
+<button id="openRight" class="floating-toggle" style="right:0;display:none">◀</button>
+
 <div id="main">
     <div id="chartBox">
         <div class="ov" id="infoOv">
@@ -104,21 +110,20 @@
             <button class="tb tsell" onclick="openP('SELL')">SATIŞ AÇ</button>
             <button class="tb tclose" id="clB" style="display:none" onclick="closeP()">KAPAT</button>
         </div>
-
-        <!-- ForexFactory News Widget -->
-        <div id="ffNewsBox">
-            <div class="ff-header">
-                <span class="ff-title-main">ECONOMIC CALENDAR</span>
-                <span id="ffToggle">▲</span>
-            </div>
-            <div id="ffNewsList"></div>
-            <div id="ffLastUpdate">SON: --:--</div>
-        </div>
     </div>
     <div id="logP">
         <div class="stitle" style="padding:10px">[ İŞLEM GÜNLÜĞÜ ]</div>
         <div id="lL"></div>
     </div>
+</div>
+
+<div id="rightSidebar">
+    <div class="ff-header">
+        <span class="ff-title-main">ECONOMIC CALENDAR</span>
+        <button id="closeRight" class="toggle-btn">▶</button>
+    </div>
+    <div id="ffNewsList"></div>
+    <div id="ffLastUpdate">SON: --:--</div>
 </div>
 
 <!-- Uygulama Modülleri -->
