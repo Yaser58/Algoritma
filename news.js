@@ -21,124 +21,76 @@ function analyzeImpact(item) {
         // Enflasyon ve İşsizlikte düşük veri USD için genelde negatiftir (faiz indirimi beklentisi)
         usdBullish = actual < forecast;
     }
+// ─── Finansal Haber & Coin Etki Analizi (v3.0) ───────────────────────────────
 
-    if (actual === forecast) return { text: 'NÖTR', color: '#888', sentiment: 'neutral' };
+const NEWS_SOURCE = 'https://www.dailyfx.com/feeds/forex-market-news';
+const PROXY = 'https://api.allorigins.win/get?url=';
 
-    // Kripto Etkisi: USD Bullish ise Kripto Bearish, USD Bearish ise Kripto Bullish
-    if (usdBullish) {
-        return { text: 'BEARISH (DÜŞÜŞ)', color: '#ff4444', sentiment: 'bearish' };
-    } else {
-        return { text: 'BULLISH (YÜKSELİŞ)', color: '#00ff41', sentiment: 'bullish' };
-    }
+function analyzeSentiment(title) {
+    const t = title.toLowerCase();
+    // USD güçlenirse Kripto genelde düşer
+    const usdBullish = t.includes('strong') || t.includes('rise') || t.includes('higher') || t.includes('gain') || t.includes('hawkish') || t.includes('beat');
+    const usdBearish = t.includes('weak') || t.includes('fall') || t.includes('lower') || t.includes('loss') || t.includes('dovish') || t.includes('miss');
+
+    if (usdBullish) return { text: 'BEARISH (DÜŞÜŞ)', color: '#ff4444' };
+    if (usdBearish) return { text: 'BULLISH (YÜKSELİŞ)', color: '#00ff41' };
+    return { text: 'NÖTR / BELİRSİZ', color: '#888' };
 }
 
 async function fetchFFNews() {
-    console.log("Sistem: JSONP Bağlantısı Aktif (v2.0)");
+    console.log("Haberler çekiliyor...");
     const list = document.getElementById('ffNewsList');
     if (!list) return;
 
-    list.innerHTML = '<div class="ff-loading">GÜVENLİ KANAL ÜZERİNDEN BAĞLANILIYOR...</div>';
-
-    // JSONP Yöntemi (CORS Engelini Tamamen Bypass Eder)
-    const fetchJSONP = (url) => {
-        return new Promise((resolve, reject) => {
-            const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-            window[callbackName] = (data) => {
-                delete window[callbackName];
-                document.body.removeChild(script);
-                resolve(data.contents);
-            };
-
-            const script = document.createElement('script');
-            script.src = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&callback=${callbackName}`;
-            script.onerror = () => reject(new Error('JSONP yükleme hatası'));
-            document.body.appendChild(script);
-        });
-    };
-
-    let xmlText = null;
-    let errorDetail = '';
+    list.innerHTML = '<div class="ff-loading">HABERLER GÜNCELLENİYOR...</div>';
 
     try {
-        // Önce JSONP dene (En garanti yöntem)
-        xmlText = await fetchJSONP(CALENDAR_URL);
+        const res = await fetch(PROXY + encodeURIComponent(NEWS_SOURCE));
+        if (!res.ok) throw new Error('Proxy hatası');
         
-        if (!xmlText || !xmlText.includes('<event>')) {
-            throw new Error('Veri boş veya geçersiz');
-        }
-
+        const data = await res.json();
         const parser = new DOMParser();
-        const xml = parser.parseFromString(xmlText, 'text/xml');
+        const xml = parser.parseFromString(data.contents, 'text/xml');
         
-        const events = Array.from(xml.querySelectorAll('event')).slice(0, 30);
-        if (!events.length) throw new Error('Veri formatı geçersiz');
+        const items = Array.from(xml.querySelectorAll('item')).slice(0, 15);
+        if (!items.length) throw new Error('Haber bulunamadı');
 
         list.innerHTML = '';
-        
-        events.forEach(ev => {
-            const data = {
-                title: ev.querySelector('title')?.textContent || '',
-                event: ev.querySelector('event')?.textContent || '',
-                country: ev.querySelector('country')?.textContent || '',
-                date: ev.querySelector('date')?.textContent || '',
-                time: ev.querySelector('time')?.textContent || '',
-                impact: ev.querySelector('impact')?.textContent || '',
-                forecast: ev.querySelector('forecast')?.textContent || '',
-                actual: ev.querySelector('actual')?.textContent || ''
-            };
-
-            if (data.country !== 'USD') return; // Sadece USD etkileyenleri göster (Kripto için en kritik olan)
-
-            const analysis = analyzeImpact(data);
-            const impactColorMap = { 'High': '#ff0000', 'Medium': '#ffaa00', 'Low': '#00ff41' };
-            const dotColor = impactColorMap[data.impact] || '#555';
+        items.forEach(item => {
+            const title = item.querySelector('title')?.textContent || '';
+            const pubDate = item.querySelector('pubDate')?.textContent || '';
+            const analysis = analyzeSentiment(title);
 
             const row = document.createElement('div');
             row.className = 'ff-row';
             row.style.flexDirection = 'column';
             row.style.alignItems = 'flex-start';
-            row.style.gap = '2px';
             row.style.padding = '8px 10px';
+            row.style.borderBottom = '1px solid #111';
 
             row.innerHTML = `
-                <div style="display:flex;justify-content:space-between;width:100%;font-size:0.6rem;color:var(--dim)">
-                    <span>${data.date} ${data.time}</span>
-                    <span style="color:${dotColor};font-weight:bold">${data.impact.toUpperCase()}</span>
-                </div>
-                <div style="font-weight:bold;color:#eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">
-                    ${data.title}
-                </div>
-                <div style="display:flex;gap:10px;font-size:0.65rem;margin-top:2px">
-                    <span style="color:#888">Beklenti: ${data.forecast || '-'}</span>
-                    <span style="color:#fff">Açıklanan: ${data.actual || '-'}</span>
-                </div>
-                <div style="margin-top:4px;font-size:0.7rem;font-weight:bold;color:${analysis.color}">
-                    COIN ETKİSİ: ${analysis.text}
-                </div>
+                <div style="font-size:0.6rem;color:var(--dim);margin-bottom:2px">${new Date(pubDate).toLocaleTimeString('tr-TR')}</div>
+                <div style="font-weight:bold;color:#eee;font-size:0.72rem;line-height:1.3;margin-bottom:4px">${title}</div>
+                <div style="font-size:0.65rem;font-weight:bold;color:${analysis.color}">ETKİ: ${analysis.text}</div>
             `;
             list.appendChild(row);
         });
 
-        if (list.innerHTML === '') {
-            list.innerHTML = '<div class="ff-loading">Yakın zamanda USD haberi yok.</div>';
-        }
-
-        document.getElementById('ffLastUpdate').textContent =
-            'ANALİZ: ' + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+        document.getElementById('ffLastUpdate').textContent = 'GÜNCEL: ' + new Date().toLocaleTimeString('tr-TR');
 
     } catch (err) {
         list.innerHTML = `
-            <div class="ff-loading" style="color:#ff4444;cursor:pointer;font-size:0.6rem;padding:15px" onclick="fetchFFNews()">
-                ANALİZ HATASI<br>
-                <span style="color:#888;font-size:0.55rem">(${err.message})</span><br><br>
-                <span style="text-decoration:underline;color:var(--green)">YENİDEN DENE</span>
+            <div class="ff-loading" style="color:#ff4444;cursor:pointer;font-size:0.65rem" onclick="fetchFFNews()">
+                BAĞLANTI HATASI<br>
+                <span style="font-size:0.55rem;color:#888">(${err.message})</span><br>
+                <span style="text-decoration:underline">YENİDEN DENE</span>
             </div>`;
     }
 }
 
 function initNewsWidget() {
     fetchFFNews();
-    setInterval(fetchFFNews, 10 * 60 * 1000); // 10 dakikada bir
+    setInterval(fetchFFNews, 5 * 60 * 1000);
 
     const toggleBtn = document.getElementById('ffToggle');
     const newsBody  = document.getElementById('ffNewsList');
