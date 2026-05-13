@@ -20,58 +20,59 @@ function formatTime(dateStr) {
 }
 
 async function fetchWithFallback(targetUrl) {
-    const proxies = [
-        { url: 'https://corsproxy.io/?', type: 'direct' },
-        { url: 'https://api.codetabs.com/v1/proxy?quest=', type: 'direct' },
-        { url: 'https://api.allorigins.win/get?url=', type: 'wrapped' }
-    ];
+    // rss2json servisi daha stabil ve CONNECTION_RESET hatalarına karşı daha dirençli
+    const rss2json = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(targetUrl)}`;
+    
+    try {
+        const res = await fetch(rss2json);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'ok') return data.items;
+        }
+    } catch (e) {
+        console.warn("rss2json failed, trying direct proxy...");
+    }
 
-    let lastError = null;
+    // Yedek: Klasik proxy yöntemleri
+    const proxies = [
+        'https://api.codetabs.com/v1/proxy?quest=',
+        'https://corsproxy.io/?'
+    ];
 
     for (const proxy of proxies) {
         try {
-            const fetchUrl = proxy.url + encodeURIComponent(targetUrl);
-            const res = await fetch(fetchUrl);
-            if (!res.ok) continue;
-
-            if (proxy.type === 'wrapped') {
-                const data = await res.json();
-                return data.contents;
-            } else {
-                return await res.text();
+            const res = await fetch(proxy + encodeURIComponent(targetUrl));
+            if (res.ok) {
+                const text = await res.text();
+                const parser = new DOMParser();
+                const xml = parser.parseFromString(text, 'text/xml');
+                return Array.from(xml.querySelectorAll('item')).map(item => ({
+                    title: item.querySelector('title')?.textContent || '',
+                    pubDate: item.querySelector('pubDate')?.textContent || '',
+                    description: item.querySelector('description')?.textContent || ''
+                }));
             }
-        } catch (e) {
-            lastError = e;
-            continue;
-        }
+        } catch (e) { continue; }
     }
-    throw lastError || new Error('Bağlantı kurulamadı');
+    throw new Error('Haber servisine ulaşılamıyor.');
 }
 
 async function fetchFFNews() {
     const list = document.getElementById('ffNewsList');
     if (!list) return;
 
-    list.innerHTML = '<div class="ff-loading">HABERLER ÇEKİLİYOR...</div>';
+    list.innerHTML = '<div class="ff-loading">VERİLER ALINIYOR...</div>';
 
     try {
-        const text = await fetchWithFallback(FF_RSS);
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(text, 'text/xml');
+        const items = await fetchWithFallback(FF_RSS);
         
-        // XML parse hatası kontrolü
-        if (xml.getElementsByTagName("parsererror").length > 0) {
-            throw new Error("Veri okuma hatası");
-        }
-
-        const items = Array.from(xml.querySelectorAll('item')).slice(0, 12);
-        if (!items.length) throw new Error('Güncel haber bulunamadı');
+        if (!items || !items.length) throw new Error('Haber bulunamadı');
 
         list.innerHTML = '';
-        items.forEach(item => {
-            const title = item.querySelector('title')?.textContent || '';
-            const pubDate = item.querySelector('pubDate')?.textContent || '';
-            const desc = item.querySelector('description')?.textContent || '';
+        items.slice(0, 12).forEach(item => {
+            const title = item.title || '';
+            const pubDate = item.pubDate || '';
+            const desc = item.description || '';
 
             let impact = '#555';
             if (/high/i.test(title + desc)) impact = '#ff0000';
@@ -93,9 +94,9 @@ async function fetchFFNews() {
 
     } catch (err) {
         list.innerHTML = `
-            <div class="ff-loading" style="color:#ff4444;cursor:pointer" onclick="fetchFFNews()">
-                HATA: ${err.message}<br>
-                <span style="font-size:0.6rem;text-decoration:underline;color:var(--dim)">YENİDEN DENE</span>
+            <div class="ff-loading" style="color:#ff4444;cursor:pointer;font-size:0.65rem" onclick="fetchFFNews()">
+                BAĞLANTI HATASI<br>
+                <span style="font-size:0.6rem;text-decoration:underline;color:var(--dim)">TEKRAR DENE</span>
             </div>`;
     }
 }
