@@ -19,55 +19,84 @@ function formatTime(dateStr) {
     return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 }
 
+async function fetchWithFallback(targetUrl) {
+    const proxies = [
+        { url: 'https://corsproxy.io/?', type: 'direct' },
+        { url: 'https://api.codetabs.com/v1/proxy?quest=', type: 'direct' },
+        { url: 'https://api.allorigins.win/get?url=', type: 'wrapped' }
+    ];
+
+    let lastError = null;
+
+    for (const proxy of proxies) {
+        try {
+            const fetchUrl = proxy.url + encodeURIComponent(targetUrl);
+            const res = await fetch(fetchUrl);
+            if (!res.ok) continue;
+
+            if (proxy.type === 'wrapped') {
+                const data = await res.json();
+                return data.contents;
+            } else {
+                return await res.text();
+            }
+        } catch (e) {
+            lastError = e;
+            continue;
+        }
+    }
+    throw lastError || new Error('Bağlantı kurulamadı');
+}
+
 async function fetchFFNews() {
-    const box   = document.getElementById('ffNewsBox');
-    const list  = document.getElementById('ffNewsList');
+    const list = document.getElementById('ffNewsList');
     if (!list) return;
 
-    list.innerHTML = '<div class="ff-loading">YÜKLENİYOR...</div>';
+    list.innerHTML = '<div class="ff-loading">HABERLER ÇEKİLİYOR...</div>';
 
     try {
-        const url = PROXY + encodeURIComponent(FF_RSS);
-        const res = await fetch(url);
-        
-        if (!res.ok) throw new Error(`HTTP Hata! Statü: ${res.status}`);
-        
-        const text = await res.text();
-
+        const text = await fetchWithFallback(FF_RSS);
         const parser = new DOMParser();
-        const xml    = parser.parseFromString(text, 'text/xml');
-        const items  = Array.from(xml.querySelectorAll('item')).slice(0, 12);
+        const xml = parser.parseFromString(text, 'text/xml');
+        
+        // XML parse hatası kontrolü
+        if (xml.getElementsByTagName("parsererror").length > 0) {
+            throw new Error("Veri okuma hatası");
+        }
 
-        if (!items.length) throw new Error('Haber bulunamadı');
+        const items = Array.from(xml.querySelectorAll('item')).slice(0, 12);
+        if (!items.length) throw new Error('Güncel haber bulunamadı');
 
         list.innerHTML = '';
         items.forEach(item => {
-            const title   = item.querySelector('title')?.textContent   || '';
+            const title = item.querySelector('title')?.textContent || '';
             const pubDate = item.querySelector('pubDate')?.textContent || '';
-            const desc    = item.querySelector('description')?.textContent || '';
+            const desc = item.querySelector('description')?.textContent || '';
 
-            // Basit impact tahmini: başlık/açıklama içeriğinden
             let impact = '#555';
-            if (/high/i.test(title + desc))   impact = '#ff0000';
+            if (/high/i.test(title + desc)) impact = '#ff0000';
             else if (/medium/i.test(title + desc)) impact = '#ffaa00';
-            else if (/low/i.test(title + desc))    impact = '#00ff41';
+            else if (/low/i.test(title + desc)) impact = '#00ff41';
 
             const row = document.createElement('div');
             row.className = 'ff-row';
             row.innerHTML = `
                 <span class="ff-dot" style="background:${impact};box-shadow:0 0 4px ${impact}"></span>
                 <span class="ff-time">${formatTime(pubDate)}</span>
-                <span class="ff-title">${title.replace(/\[.*?\]/g, '').trim()}</span>
+                <span class="ff-title" title="${title}">${title.replace(/\[.*?\]/g, '').trim()}</span>
             `;
             list.appendChild(row);
         });
 
-        // Son güncelleme zamanı
         document.getElementById('ffLastUpdate').textContent =
             'SON: ' + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 
     } catch (err) {
-        list.innerHTML = `<div class="ff-loading" style="color:#ff4444">HATA: ${err.message}</div>`;
+        list.innerHTML = `
+            <div class="ff-loading" style="color:#ff4444;cursor:pointer" onclick="fetchFFNews()">
+                HATA: ${err.message}<br>
+                <span style="font-size:0.6rem;text-decoration:underline;color:var(--dim)">YENİDEN DENE</span>
+            </div>`;
     }
 }
 
