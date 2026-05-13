@@ -1,7 +1,7 @@
 // ─── ForexFactory Haber Widget ───────────────────────────────────────────────
 
 const FF_RSS  = 'https://forexfactory.com/rss';
-const PROXY   = 'https://api.allorigins.win/get?url=';
+const PROXY   = 'https://corsproxy.io/?';
 const NEWS_INTERVAL = 5 * 60 * 1000; // 5 dakikada bir yenile
 
 function impactColor(title) {
@@ -29,10 +29,13 @@ async function fetchFFNews() {
     try {
         const url = PROXY + encodeURIComponent(FF_RSS);
         const res = await fetch(url);
-        const data = await res.json();
+        
+        if (!res.ok) throw new Error(`HTTP Hata! Statü: ${res.status}`);
+        
+        const text = await res.text();
 
         const parser = new DOMParser();
-        const xml    = parser.parseFromString(data.contents, 'text/xml');
+        const xml    = parser.parseFromString(text, 'text/xml');
         const items  = Array.from(xml.querySelectorAll('item')).slice(0, 12);
 
         if (!items.length) throw new Error('Haber bulunamadı');
