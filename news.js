@@ -1,11 +1,6 @@
 // ─── Ekonomik Takvim & Coin Etki Analizi ─────────────────────────────────────
 
 const CALENDAR_URL = 'https://www.forexfactory.com/ff_calendar_thisweek.xml';
-const PROXY_LIST = [
-    { url: 'https://images1-focus-opensocial.googleusercontent.com/gadgets/proxy?container=focus&refresh=600&url=', type: 'direct' },
-    { url: 'https://api.codetabs.com/v1/proxy?quest=', type: 'direct' },
-    { url: 'https://api.allorigins.win/get?url=', type: 'wrapped' }
-];
 
 function analyzeImpact(item) {
     const event = (item.event || '').toUpperCase();
@@ -38,6 +33,7 @@ function analyzeImpact(item) {
 }
 
 async function fetchFFNews() {
+    console.log("Sistem: JSONP Bağlantısı Aktif (v2.0)");
     const list = document.getElementById('ffNewsList');
     if (!list) return;
 
