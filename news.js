@@ -1,14 +1,21 @@
-// ─── ForexFactory Haber Widget ───────────────────────────────────────────────
+// ─── Finansal Haber Widget ───────────────────────────────────────────────
 
-const FF_RSS  = 'https://forexfactory.com/rss';
-const PROXY   = 'https://corsproxy.io/?';
-const NEWS_INTERVAL = 5 * 60 * 1000; // 5 dakikada bir yenile
+const SOURCES = [
+    { name: 'ForexFactory', url: 'https://www.forexfactory.com/rss.php' },
+    { name: 'DailyFX', url: 'https://www.dailyfx.com/feeds/forex-market-news' }
+];
 
-function impactColor(title) {
-    const t = (title || '').toLowerCase();
-    if (t.includes('high')   || t.includes('yüksek')) return '#ff0000';
-    if (t.includes('medium') || t.includes('orta'))   return '#ffaa00';
-    if (t.includes('low')    || t.includes('düşük'))  return '#00ff41';
+const PROXY_LIST = [
+    'https://api.rss2json.com/v1/api.json?rss_url=',
+    'https://api.codetabs.com/v1/proxy?quest=',
+    'https://corsproxy.io/?'
+];
+
+function impactColor(title, desc) {
+    const text = (title + ' ' + desc).toLowerCase();
+    if (text.includes('high') || text.includes('yüksek') || text.includes('critical')) return '#ff0000';
+    if (text.includes('medium') || text.includes('orta') || text.includes('important')) return '#ffaa00';
+    if (text.includes('low') || text.includes('düşük')) return '#00ff41';
     return '#555';
 }
 
@@ -19,93 +26,94 @@ function formatTime(dateStr) {
     return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 }
 
-async function fetchWithFallback(targetUrl) {
-    // rss2json servisi daha stabil ve CONNECTION_RESET hatalarına karşı daha dirençli
-    const rss2json = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(targetUrl)}`;
-    
-    try {
-        const res = await fetch(rss2json);
-        if (res.ok) {
-            const data = await res.json();
-            if (data.status === 'ok') return data.items;
-        }
-    } catch (e) {
-        console.warn("rss2json failed, trying direct proxy...");
-    }
-
-    // Yedek: Klasik proxy yöntemleri
-    const proxies = [
-        'https://api.codetabs.com/v1/proxy?quest=',
-        'https://corsproxy.io/?'
-    ];
-
-    for (const proxy of proxies) {
+async function fetchNewsFromSource(source) {
+    for (const proxyBase of PROXY_LIST) {
         try {
-            const res = await fetch(proxy + encodeURIComponent(targetUrl));
-            if (res.ok) {
+            const url = proxyBase + encodeURIComponent(source.url);
+            const res = await fetch(url);
+            if (!res.ok) continue;
+
+            if (proxyBase.includes('rss2json')) {
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    return data.items.map(item => ({
+                        title: item.title,
+                        pubDate: item.pubDate,
+                        description: item.description,
+                        source: source.name
+                    }));
+                }
+            } else {
                 const text = await res.text();
                 const parser = new DOMParser();
                 const xml = parser.parseFromString(text, 'text/xml');
+                if (xml.getElementsByTagName("parsererror").length > 0) continue;
+                
                 return Array.from(xml.querySelectorAll('item')).map(item => ({
                     title: item.querySelector('title')?.textContent || '',
                     pubDate: item.querySelector('pubDate')?.textContent || '',
-                    description: item.querySelector('description')?.textContent || ''
+                    description: item.querySelector('description')?.textContent || '',
+                    source: source.name
                 }));
             }
-        } catch (e) { continue; }
+        } catch (e) {
+            console.warn(`${source.name} via ${proxyBase} failed`);
+        }
     }
-    throw new Error('Haber servisine ulaşılamıyor.');
+    return null;
 }
 
 async function fetchFFNews() {
     const list = document.getElementById('ffNewsList');
     if (!list) return;
 
-    list.innerHTML = '<div class="ff-loading">VERİLER ALINIYOR...</div>';
+    list.innerHTML = '<div class="ff-loading">HABERLER TARANIYOR...</div>';
 
-    try {
-        const items = await fetchWithFallback(FF_RSS);
-        
-        if (!items || !items.length) throw new Error('Haber bulunamadı');
-
-        list.innerHTML = '';
-        items.slice(0, 12).forEach(item => {
-            const title = item.title || '';
-            const pubDate = item.pubDate || '';
-            const desc = item.description || '';
-
-            let impact = '#555';
-            if (/high/i.test(title + desc)) impact = '#ff0000';
-            else if (/medium/i.test(title + desc)) impact = '#ffaa00';
-            else if (/low/i.test(title + desc)) impact = '#00ff41';
-
-            const row = document.createElement('div');
-            row.className = 'ff-row';
-            row.innerHTML = `
-                <span class="ff-dot" style="background:${impact};box-shadow:0 0 4px ${impact}"></span>
-                <span class="ff-time">${formatTime(pubDate)}</span>
-                <span class="ff-title" title="${title}">${title.replace(/\[.*?\]/g, '').trim()}</span>
-            `;
-            list.appendChild(row);
-        });
-
-        document.getElementById('ffLastUpdate').textContent =
-            'SON: ' + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-
-    } catch (err) {
-        list.innerHTML = `
-            <div class="ff-loading" style="color:#ff4444;cursor:pointer;font-size:0.65rem" onclick="fetchFFNews()">
-                BAĞLANTI HATASI<br>
-                <span style="font-size:0.6rem;text-decoration:underline;color:var(--dim)">TEKRAR DENE</span>
-            </div>`;
+    let allNews = [];
+    
+    // Her iki kaynağı da dene
+    for (const source of SOURCES) {
+        const news = await fetchNewsFromSource(source);
+        if (news && news.length) {
+            allNews = allNews.concat(news);
+            break; // Birinden veri aldıysak yeterli
+        }
     }
+
+    if (!allNews.length) {
+        list.innerHTML = `
+            <div class="ff-loading" style="color:#ff4444;cursor:pointer;font-size:0.6rem" onclick="fetchFFNews()">
+                BAĞLANTI SORUNU<br>
+                (Proxy veya Kaynak Engeli)<br>
+                <span style="text-decoration:underline">TEKRAR DENE</span>
+            </div>`;
+        return;
+    }
+
+    // Tarihe göre sırala (en yeni üstte)
+    allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+
+    list.innerHTML = '';
+    allNews.slice(0, 15).forEach(item => {
+        const impact = impactColor(item.title, item.description);
+        const row = document.createElement('div');
+        row.className = 'ff-row';
+        row.innerHTML = `
+            <span class="ff-dot" style="background:${impact};box-shadow:0 0 4px ${impact}"></span>
+            <span class="ff-time">${formatTime(item.pubDate)}</span>
+            <span class="ff-title" title="${item.title}">${item.title.replace(/\[.*?\]/g, '').trim()}</span>
+        `;
+        list.appendChild(row);
+    });
+
+    document.getElementById('ffLastUpdate').textContent =
+        'SON: ' + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 }
 
 function initNewsWidget() {
     fetchFFNews();
-    setInterval(fetchFFNews, NEWS_INTERVAL);
+    setInterval(fetchFFNews, 5 * 60 * 1000);
 
-    // Kapat/aç toggle
     const toggleBtn = document.getElementById('ffToggle');
     const newsBody  = document.getElementById('ffNewsList');
     if (toggleBtn && newsBody) {
@@ -117,7 +125,6 @@ function initNewsWidget() {
     }
 }
 
-// DOM hazır olduğunda başlat
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initNewsWidget);
 } else {
