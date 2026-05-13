@@ -1,5 +1,5 @@
 (function() {
-    console.log("Haber & Takvim v29.0 (Investing.com Calendar Engine) Başlatıldı");
+    console.log("Haber & Takvim v30.0 (TradingView Calendar Engine) Başlatıldı");
 
     function updateClock() {
         const u = document.getElementById('ffLastUpdate');
@@ -10,23 +10,32 @@
     }
     setInterval(updateClock, 1000);
 
-    function loadCalendar() {
-        const list = document.getElementById('ffNewsList');
-        if (!list) return;
+    function loadTradingViewCalendar() {
+        const container = document.getElementById('ffNewsList');
+        if (!container) return;
 
-        // Investing.com Ekonomik Takvim Widget'ı (Piyasaya Etki, Beklenti ve Gerçekleşen Verileri İçerir)
-        // Bu widget engellenemez bir altyapıya sahiptir ve tüm detayları (Yıldız/Boğa simgeleri ile etki) gösterir.
-        list.innerHTML = `
-            <div style="height:100%; width:100%; background:#000;">
-                <iframe src="https://sslecal2.investing.com?columns=exc_flags,exc_currency,exc_importance,exc_actual,exc_forecast,exc_previous&category=_unspecified,_currencies,_indices,_bonds,_commodities,_centralBanks&importance=1,2,3&features=datepicker,timezone&countries=5&calType=day&timeZone=52&lang=10" 
-                        width="100%" height="100%" frameborder="0" allowtransparency="true" marginwidth="0" marginheight="0">
-                </iframe>
-            </div>
-            <style>
-                iframe { filter: invert(1) hue-rotate(180deg) brightness(0.8); } /* Karanlık Mod Uyumu */
-            </style>
-        `;
+        // TradingView Ekonomik Takvim Widget'ı
+        // En yüksek stabiliteye sahiptir, bloklanmaz ve tüm profesyonel verileri (Etki, Gerçek, Beklenti) içerir.
+        container.innerHTML = '<div id="tv-calendar-container" style="height:100%; width:100%;"></div>';
+        
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-events.js';
+        script.async = true;
+        
+        const config = {
+            "colorTheme": "dark",
+            "isTransparent": true,
+            "width": "100%",
+            "height": "100%",
+            "locale": "tr",
+            "importanceFilter": "-1,0,1",
+            "currencyFilter": "USD"
+        };
+        
+        script.innerHTML = JSON.stringify(config);
+        document.getElementById('tv-calendar-container').appendChild(script);
     }
 
-    if (document.readyState === 'complete') loadCalendar(); else window.addEventListener('load', loadCalendar);
+    if (document.readyState === 'complete') loadTradingViewCalendar(); else window.addEventListener('load', loadTradingViewCalendar);
 })();
