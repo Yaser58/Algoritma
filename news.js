@@ -1,8 +1,32 @@
 (function() {
-    console.log("Haber & Takvim Sistemi v8.0 (Resilient) Başlatıldı");
+    console.log("Haber & Takvim Sistemi v9.0 (İstanbul Saati) Başlatıldı");
 
     const CALENDAR_URL = 'https://nfs.faireconomy.media/ff_calendar_thisweek.xml';
     const NEWS_URL = 'https://min-api.cryptocompare.com/data/v2/news/?lang=EN';
+
+    function formatTRTime(dateObj) {
+        // İstanbul saatine göre (UTC+3)
+        const options = { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit',
+            hour12: true,
+            timeZone: 'Europe/Istanbul'
+        };
+        const timeStr = new Intl.DateTimeFormat('tr-TR', options).format(dateObj);
+        // AM/PM kısmını Sabah/Akşam olarak çevirelim
+        return timeStr.replace('ÖÖ', 'SABAH').replace('ÖS', 'AKŞAM').replace('AM', 'SABAH').replace('PM', 'AKŞAM');
+    }
+
+    // Canlı Saat Güncelleme
+    function updateLiveClock() {
+        const updateText = document.getElementById('ffLastUpdate');
+        if (updateText) {
+            const now = new Date();
+            updateText.innerHTML = `<span style="color:var(--dim)">İSTANBUL:</span> ${formatTRTime(now)}`;
+        }
+    }
+    setInterval(updateLiveClock, 1000);
 
     function getSentiment(text) {
         const t = (text || '').toLowerCase();
@@ -15,38 +39,43 @@
 
     async function loadData() {
         const list = document.getElementById('ffNewsList');
-        const updateText = document.getElementById('ffLastUpdate');
         if (!list) return;
 
-        list.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#00ff41;font-size:0.6rem;opacity:0.7">VERİ AKIŞI BAŞLATILIYOR...</div>';
+        list.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#00ff41;font-size:0.6rem;opacity:0.7">VERİ KANALLARI DENENİYOR...</div>';
 
-        // Strateji: Önce Takvimi (XML) dene, başarısız olursa Haberlere (JSON) dön.
-        try {
-            // 1. ADIM: TAKVİM DENEMESİ (ForexFactory Mirror via allorigins)
-            const proxy = 'https://api.allorigins.win/get?url=';
-            const res = await fetch(proxy + encodeURIComponent(CALENDAR_URL + '?t=' + Date.now()));
-            const json = await res.json();
-            const xmlText = json.contents;
+        let xmlText = null;
+        // Çoklu Proxy Kanalı
+        const proxies = [
+            'https://api.allorigins.win/get?url=',
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://corsproxy.io/?'
+        ];
 
-            if (xmlText && xmlText.includes('<event>')) {
-                renderCalendar(xmlText, list);
-            } else {
-                throw new Error("Takvim verisi alınamadı, haberlere geçiliyor...");
-            }
-        } catch (e) {
-            console.warn(e.message);
-            // 2. ADIM: HABER DENEMESİ (CryptoCompare - Direkt Bağlantı)
+        for (let p of proxies) {
+            try {
+                const res = await fetch(p + encodeURIComponent(CALENDAR_URL + '?t=' + Date.now()));
+                if (!res.ok) continue;
+                const json = await res.json();
+                const content = json.contents || json;
+                if (content && content.includes('<event>')) {
+                    xmlText = content;
+                    break;
+                }
+            } catch (e) {}
+        }
+
+        if (xmlText) {
+            renderCalendar(xmlText, list);
+        } else {
+            // Takvim başarısızsa doğrudan habere geç (Haber servisi genelde daha stabildir)
             try {
                 const res = await fetch(NEWS_URL);
-                if (!res.ok) throw new Error("Haber servisi de ulaşılamaz durumda");
                 const newsData = await res.json();
                 renderNews(newsData.Data || [], list);
-            } catch (e2) {
+            } catch (e) {
                 renderError(list);
             }
         }
-
-        if (updateText) updateText.textContent = 'GÜNCEL: ' + new Date().toLocaleTimeString();
     }
 
     function renderCalendar(xmlText, container) {
@@ -56,45 +85,39 @@
         container.innerHTML = '';
 
         events.forEach(ev => {
-            const country = ev.querySelector('country')?.textContent || '';
-            if (country !== 'USD') return;
+            if ((ev.querySelector('country')?.textContent || '') !== 'USD') return;
 
-            const title = ev.querySelector('title')?.textContent || '';
-            const impact = ev.querySelector('impact')?.textContent || '';
-            const forecast = ev.querySelector('forecast')?.textContent || '';
             const actual = ev.querySelector('actual')?.textContent || '';
-            const time = ev.querySelector('time')?.textContent || '';
-            const date = ev.querySelector('date')?.textContent || '';
             const isAnnounced = actual !== '';
-
+            const timestamp = new Date(ev.querySelector('date')?.textContent + ' ' + ev.querySelector('time')?.textContent);
+            
             const row = document.createElement('div');
             row.style.padding = '12px 10px';
             row.style.borderBottom = '1px solid #111';
             row.style.fontSize = '0.7rem';
-            row.style.background = isAnnounced ? 'rgba(0,255,65,0.02)' : 'transparent';
 
             row.innerHTML = `
                 <div style="display:flex;justify-content:space-between;margin-bottom:5px">
-                    <span style="color:#555;font-size:0.6rem">${date} | ${time}</span>
-                    <span style="color:${impact === 'High' ? '#f00' : '#fa0'};font-size:0.6rem;font-weight:bold">${impact.toUpperCase()} ETKİ</span>
+                    <span style="color:#555;font-size:0.55rem">${formatTRTime(timestamp)}</span>
+                    <span style="color:#555;font-size:0.55rem">KAYNAK: FF</span>
                 </div>
-                <div style="color:#eee;font-weight:bold;margin-bottom:6px;line-height:1.3">${title}</div>
+                <div style="color:#eee;font-weight:bold;margin-bottom:6px;line-height:1.3">${ev.querySelector('title')?.textContent}</div>
                 <div style="display:flex;justify-content:space-between;align-items:center">
-                    <span style="font-size:0.6rem;color:#888">B: ${forecast || '--'} | A: <b style="color:#fff">${actual || '--'}</b></span>
+                    <span style="font-size:0.6rem;color:#888">B: ${ev.querySelector('forecast')?.textContent || '--'} | A: <b style="color:#fff">${actual || '--'}</b></span>
                     <span style="font-size:0.55rem;color:${isAnnounced ? '#00ff41' : '#ffaa00'};font-weight:bold;padding:1px 4px;border:1px solid;border-radius:2px">
                         ${isAnnounced ? 'AÇIKLANDI' : 'BEKLENİYOR'}
                     </span>
                 </div>
-                <div style="color:#333;font-size:0.5rem;margin-top:4px">KAYNAK: ForexFactory (FF)</div>
             `;
             container.appendChild(row);
         });
     }
 
     function renderNews(newsItems, container) {
-        container.innerHTML = '<div style="padding:10px;color:#aaa;font-size:0.6rem;text-align:center">Takvim hatası nedeniyle CANLI HABER AKIŞI devreye girdi.</div>';
+        container.innerHTML = '<div style="padding:10px;color:#aaa;font-size:0.55rem;text-align:center">TAKVİM MEŞGUL, CANLI HABER AKIŞI AKTİF</div>';
         newsItems.slice(0, 15).forEach(item => {
             const sentiment = getSentiment(item.title);
+            const pubDate = new Date(item.published_on * 1000);
             const row = document.createElement('div');
             row.style.padding = '12px 10px';
             row.style.borderBottom = '1px solid #111';
@@ -102,15 +125,13 @@
             row.style.cursor = 'pointer';
             row.onclick = () => window.open(item.url, '_blank');
 
-            const date = new Date(item.published_on * 1000).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-            
             row.innerHTML = `
                 <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-                    <span style="color:#555;font-size:0.6rem">${date}</span>
-                    <span style="color:#888;font-size:0.6rem">${item.source}</span>
+                    <span style="color:#555;font-size:0.55rem">${formatTRTime(pubDate)}</span>
+                    <span style="color:#555;font-size:0.55rem">KAYNAK: ${item.source}</span>
                 </div>
                 <div style="color:#eee;font-weight:bold;margin-bottom:6px;line-height:1.4">${item.title}</div>
-                <div style="color:${sentiment.color};font-weight:bold;font-size:0.6rem">ETKİ: ${sentiment.text} (AÇIKLANDI)</div>
+                <div style="color:${sentiment.color};font-weight:bold;font-size:0.6rem">DURUM: AÇIKLANDI (ETKİ: ${sentiment.text})</div>
             `;
             container.appendChild(row);
         });
@@ -119,15 +140,13 @@
     function renderError(container) {
         container.innerHTML = `
             <div style="padding:40px 10px;text-align:center">
-                <div style="color:#ff4444;font-size:0.7rem;margin-bottom:12px">BAĞLANTI SORUNU</div>
-                <div style="color:#555;font-size:0.55rem;margin-bottom:15px">Veri kanalları şu an engellenmiş durumda.</div>
-                <button id="retryNews" style="background:transparent;border:1px solid #333;color:var(--green);padding:6px 15px;cursor:pointer;font-size:0.65rem;font-family:inherit">YENİDEN DENE</button>
+                <div style="color:#ff4444;font-size:0.7rem;margin-bottom:12px">BAĞLANTI HATASI</div>
+                <button id="retryNews" style="background:transparent;border:1px solid #333;color:var(--green);padding:6px 15px;cursor:pointer;font-size:0.65rem">YENİDEN DENE</button>
             </div>`;
-        const btn = document.getElementById('retryNews');
-        if (btn) btn.onclick = loadData;
+        document.getElementById('retryNews').onclick = loadData;
     }
 
     if (document.readyState === 'complete') loadData(); else window.addEventListener('load', loadData);
-    setInterval(loadData, 10 * 60 * 1000);
+    setInterval(loadData, 5 * 60 * 1000);
 
 })();
