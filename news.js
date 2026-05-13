@@ -1,5 +1,11 @@
 (function() {
-    console.log("Haber & Takvim v31.0 (Advanced Interpretation) Başlatıldı");
+    console.log("Haber & Takvim v32.0 (Clean Hacker Mode) Başlatıldı");
+
+    const CALENDAR_URL = 'https://nfs.faireconomy.media/ff_calendar_thisweek.xml';
+
+    function formatTR(date) {
+        return new Intl.DateTimeFormat('tr-TR', { hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Europe/Istanbul' }).format(date);
+    }
 
     function updateClock() {
         const u = document.getElementById('ffLastUpdate');
@@ -10,46 +16,90 @@
     }
     setInterval(updateClock, 1000);
 
-    function loadCalendar() {
-        const container = document.getElementById('ffNewsList');
-        if (!container) return;
-
-        container.innerHTML = `
-            <div style="display:flex; flex-direction:column; height:100%;">
-                <!-- Analiz Rehberi -->
-                <div style="padding:10px; background:rgba(0,255,65,0.05); border-bottom:1px solid #111; font-size:0.55rem; color:#888;">
-                    <div style="color:#00ff41; font-weight:bold; margin-bottom:4px; font-size:0.6rem">📊 HABER ANALİZ REHBERİ</div>
-                    <div style="display:flex; gap:10px; margin-bottom:5px">
-                        <span>🔴 <b style="color:#eee">Yüksek Etki:</b> Sert Hareket Beklenir</span>
-                    </div>
-                    <div style="line-height:1.3">
-                        <b style="color:#eee">BEKLENTİ > GERÇEK:</b> Fiyat Genelde Düşer <br>
-                        <b style="color:#eee">GERÇEK > BEKLENTİ:</b> Fiyat Genelde Yükselir
-                    </div>
-                </div>
-                <!-- Takvim Widget -->
-                <div id="tv-calendar-root" style="flex:1; width:100%;"></div>
-            </div>
-        `;
-        
-        const script = document.createElement('script');
-        script.type = 'text/javascript';
-        script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-events.js';
-        script.async = true;
-        
-        const config = {
-            "colorTheme": "dark",
-            "isTransparent": true,
-            "width": "100%",
-            "height": "100%",
-            "locale": "tr",
-            "importanceFilter": "-1,0,1",
-            "currencyFilter": "USD,EUR,TRY"
-        };
-        
-        script.innerHTML = JSON.stringify(config);
-        document.getElementById('tv-calendar-root').appendChild(script);
+    function convertFFToTR(dStr, tStr) {
+        try {
+            const d = new Date(dStr + " " + tStr + " GMT-0400");
+            return isNaN(d.getTime()) ? null : d;
+        } catch(e) { return null; }
     }
 
-    if (document.readyState === 'complete') loadCalendar(); else window.addEventListener('load', loadCalendar);
+    async function loadData() {
+        const list = document.getElementById('ffNewsList');
+        if (!list) return;
+
+        list.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#00ff41;font-size:0.6rem;opacity:0.7">VERİLER TEMİZLENİYOR...</div>';
+
+        try {
+            const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent(CALENDAR_URL + '?t=' + Date.now()));
+            const data = await res.json();
+            if (data && data.contents) {
+                renderCalendar(data.contents, list);
+            } else {
+                throw new Error("Hata");
+            }
+        } catch (e) {
+            list.innerHTML = '<div style="padding:20px;text-align:center;color:#ffaa00;font-size:0.6rem">Veri hattı meşgul. Lütfen ⟳ butonuna basın.</div>';
+        }
+    }
+
+    function renderCalendar(xmlText, container) {
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(xmlText, 'text/xml');
+        const events = Array.from(xml.querySelectorAll('event'));
+        container.innerHTML = '';
+
+        const now = new Date();
+        
+        events.forEach(ev => {
+            const country = ev.querySelector('country')?.textContent;
+            const impact = ev.querySelector('impact')?.textContent;
+            
+            // Sadece önemli USD haberleri (Gereksiz mısır/et haberlerini eliyoruz)
+            if (country !== 'USD' || impact === 'Low') return;
+
+            const trDate = convertFFToTR(ev.querySelector('date')?.textContent, ev.querySelector('time')?.textContent);
+            if (!trDate) return;
+
+            // Sadece bugün ve yarın
+            const diff = (trDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+            if (diff < -1 || diff > 2) return;
+
+            const actual = ev.querySelector('actual')?.textContent || '';
+            const forecast = ev.querySelector('forecast')?.textContent || '--';
+            const impactColor = impact === 'High' ? '#ff0000' : '#ffaa00';
+
+            const row = document.createElement('div');
+            row.style.padding = '15px 12px'; row.style.borderBottom = '1px solid #111'; row.style.fontSize = '0.75rem';
+            row.style.background = actual ? 'rgba(0,255,65,0.02)' : 'transparent';
+
+            row.innerHTML = `
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;align-items:center">
+                    <span style="color:#00ff41;font-weight:bold;font-size:0.7rem">${formatTR(trDate)} <span style="color:#555;font-weight:normal">| ${trDate.toLocaleDateString('tr-TR')}</span></span>
+                    <span style="color:${impactColor};font-size:0.55rem;font-weight:bold;border:1px solid;padding:1px 5px;border-radius:10px">${impact.toUpperCase()} ETKİ</span>
+                </div>
+                <div style="color:#eee;font-weight:bold;margin-bottom:8px;line-height:1.3;font-size:0.8rem">${ev.querySelector('title')?.textContent}</div>
+                <div style="display:flex;justify-content:space-between;align-items:center;background:rgba(0,0,0,0.3);padding:8px;border-radius:4px">
+                    <div style="color:#888;font-size:0.65rem">Beklenti: <b style="color:#aaa">${forecast}</b></div>
+                    <div style="color:#888;font-size:0.65rem">Gerçek: <b style="color:#fff">${actual || 'Bekleniyor...'}</b></div>
+                </div>
+                <div style="margin-top:8px;font-size:0.6rem;color:#444;font-style:italic">
+                    ${actual ? 'Piyasa Etkisi: Veri açıklandı, oynaklık artabilir.' : 'Analiz: Açıklanan veri beklentiden büyük gelirse USD güçlenir.'}
+                </div>
+            `;
+            container.appendChild(row);
+        });
+
+        if (container.innerHTML === '') {
+            container.innerHTML = '<div style="padding:40px;text-align:center;color:#444;font-size:0.6rem">Şu an kritik bir veri akışı bulunmuyor.</div>';
+        }
+    }
+
+    if (document.readyState === 'complete') loadData(); else window.addEventListener('load', loadData);
+    setInterval(loadData, 10 * 60 * 1000);
+    
+    // Refresh butonu bağla
+    window.addEventListener('load', () => {
+        const btn = document.getElementById('ffRefresh');
+        if (btn) btn.onclick = loadData;
+    });
 })();
