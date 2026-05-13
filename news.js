@@ -2,10 +2,9 @@
 
 const CALENDAR_URL = 'https://www.forexfactory.com/ff_calendar_thisweek.xml';
 const PROXY_LIST = [
-    'https://api.codetabs.com/v1/proxy?quest=',
-    'https://api.allorigins.win/raw?url=',
-    'https://corsproxy.io/?',
-    'https://thingproxy.freeboard.io/fetch/'
+    { url: 'https://images1-focus-opensocial.googleusercontent.com/gadgets/proxy?container=focus&refresh=600&url=', type: 'direct' },
+    { url: 'https://api.codetabs.com/v1/proxy?quest=', type: 'direct' },
+    { url: 'https://api.allorigins.win/get?url=', type: 'wrapped' }
 ];
 
 function analyzeImpact(item) {
@@ -49,16 +48,25 @@ async function fetchFFNews() {
 
     for (const proxy of PROXY_LIST) {
         try {
-            const res = await fetch(proxy + encodeURIComponent(CALENDAR_URL));
-            if (res.ok) {
-                const text = await res.text();
-                if (text && text.includes('<event>')) {
-                    xmlText = text;
-                    break;
-                }
+            console.log("Deniniyor:", proxy.url);
+            const res = await fetch(proxy.url + encodeURIComponent(CALENDAR_URL));
+            if (!res.ok) continue;
+
+            let text;
+            if (proxy.type === 'wrapped') {
+                const data = await res.json();
+                text = data.contents;
+            } else {
+                text = await res.text();
+            }
+
+            if (text && text.includes('<event>')) {
+                xmlText = text;
+                console.log("Başarılı proxy:", proxy.url);
+                break;
             }
         } catch (e) {
-            console.warn("Proxy hatası:", proxy);
+            console.warn("Proxy başarısız:", proxy.url, e.message);
             errorDetail = e.message;
         }
     }
