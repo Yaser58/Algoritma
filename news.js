@@ -1,89 +1,75 @@
-// ─── Finansal Haber & Coin Etki Analizi (v4.0) ───────────────────────────────
+(function() {
+    console.log("Haber Modülü Başlatıldı");
 
-const NEWS_SOURCE = 'https://www.dailyfx.com/feeds/forex-market-news';
+    const FEED_URL = 'https://www.dailyfx.com/feeds/forex-market-news';
+    const API_BASE = 'https://api.rss2json.com/v1/api.json?rss_url=';
 
-function analyzeSentiment(title) {
-    const t = title.toLowerCase();
-    // USD güçlenirse Kripto genelde düşer (Ters Korelasyon)
-    const usdBullish = t.includes('strong') || t.includes('rise') || t.includes('higher') || t.includes('gain') || t.includes('hawkish') || t.includes('beat') || t.includes('surge');
-    const usdBearish = t.includes('weak') || t.includes('fall') || t.includes('lower') || t.includes('loss') || t.includes('dovish') || t.includes('miss') || t.includes('drop');
-
-    if (usdBullish) return { text: 'BEARISH (DÜŞÜŞ)', color: '#ff4444' };
-    if (usdBearish) return { text: 'BULLISH (YÜKSELİŞ)', color: '#00ff41' };
-    return { text: 'NÖTR / BELİRSİZ', color: '#888' };
-}
-
-async function fetchFFNews() {
-    console.log("Haberler güncelleniyor (v4.0)...");
-    const list = document.getElementById('ffNewsList');
-    if (!list) return;
-
-    list.innerHTML = '<div class="ff-loading">HABERLER YÜKLENİYOR...</div>';
-
-    // rss2json servisi tarayıcı engellerini aşmak için en güvenli yoldur
-    const apiURL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(NEWS_SOURCE)}&t=${Date.now()}`;
-
-    try {
-        const res = await fetch(apiURL);
-        const data = await res.json();
-        
-        if (data.status !== 'ok') throw new Error('Servis şu an meşgul');
-        
-        const items = data.items.slice(0, 15);
-        if (!items.length) throw new Error('Haber bulunamadı');
-
-        list.innerHTML = '';
-        items.forEach(item => {
-            const title = item.title || '';
-            const pubDate = item.pubDate || '';
-            const analysis = analyzeSentiment(title);
-
-            const row = document.createElement('div');
-            row.className = 'ff-row';
-            row.style.flexDirection = 'column';
-            row.style.alignItems = 'flex-start';
-            row.style.padding = '8px 10px';
-            row.style.borderBottom = '1px solid #111';
-
-            row.innerHTML = `
-                <div style="font-size:0.6rem;color:var(--dim);margin-bottom:2px">${new Date(pubDate).toLocaleTimeString('tr-TR')}</div>
-                <div style="font-weight:bold;color:#eee;font-size:0.72rem;line-height:1.3;margin-bottom:4px">${title}</div>
-                <div style="font-size:0.65rem;font-weight:bold;color:${analysis.color}">ETKİ: ${analysis.text}</div>
-            `;
-            list.appendChild(row);
-        });
-
-        document.getElementById('ffLastUpdate').textContent = 'GÜNCEL: ' + new Date().toLocaleTimeString('tr-TR');
-
-    } catch (err) {
-        console.error("Haber çekme hatası:", err);
-        list.innerHTML = `
-            <div class="ff-loading" style="color:#ff4444;cursor:pointer;font-size:0.65rem;padding:10px" onclick="fetchFFNews()">
-                BAĞLANTI SORUNU<br>
-                <span style="font-size:0.55rem;color:#888">(Sunucu Yanıt Vermiyor)</span><br>
-                <span style="text-decoration:underline">TEKRAR DENE</span>
-            </div>`;
+    function getSentiment(text) {
+        const t = text.toLowerCase();
+        if (t.includes('strong') || t.includes('rise') || t.includes('higher') || t.includes('hawkish') || t.includes('beat')) 
+            return { text: 'BEARISH (DÜŞÜŞ)', color: '#ff4444' };
+        if (t.includes('weak') || t.includes('fall') || t.includes('lower') || t.includes('dovish') || t.includes('miss')) 
+            return { text: 'BULLISH (YÜKSELİŞ)', color: '#00ff41' };
+        return { text: 'NÖTR', color: '#888' };
     }
-}
 
-function initNewsWidget() {
-    fetchFFNews();
-    setInterval(fetchFFNews, 5 * 60 * 1000);
+    async function loadNews() {
+        const list = document.getElementById('ffNewsList');
+        const updateText = document.getElementById('ffLastUpdate');
+        if (!list) return;
 
-    const toggleBtn = document.getElementById('ffToggle');
-    const newsBody  = document.getElementById('ffNewsList');
-    if (toggleBtn && newsBody) {
-        toggleBtn.addEventListener('click', () => {
-            const collapsed = newsBody.style.display === 'none';
-            newsBody.style.display = collapsed ? 'block' : 'none';
-            toggleBtn.textContent  = collapsed ? '▲' : '▼';
-        });
+        list.innerHTML = '<div style="padding:20px;text-align:center;color:#00ff41;font-size:0.6rem;opacity:0.7">VERİLER ÇEKİLİYOR...</div>';
+
+        try {
+            const response = await fetch(API_BASE + encodeURIComponent(FEED_URL));
+            const data = await response.json();
+
+            if (data.status !== 'ok') throw new Error("Kaynak meşgul");
+
+            list.innerHTML = '';
+            data.items.slice(0, 10).forEach(item => {
+                const sentiment = getSentiment(item.title);
+                const row = document.createElement('div');
+                row.style.padding = '10px';
+                row.style.borderBottom = '1px solid #111';
+                row.style.fontSize = '0.7rem';
+                
+                row.innerHTML = `
+                    <div style="color:#555;font-size:0.6rem;margin-bottom:3px">${item.pubDate.split(' ')[1] || ''}</div>
+                    <div style="color:#eee;font-weight:bold;margin-bottom:5px;line-height:1.2">${item.title}</div>
+                    <div style="color:${sentiment.color};font-weight:bold;font-size:0.6rem">ETKİ: ${sentiment.text}</div>
+                `;
+                list.appendChild(row);
+            });
+
+            if (updateText) updateText.textContent = 'GÜNCEL: ' + new Date().toLocaleTimeString();
+
+        } catch (err) {
+            console.error("Haber Hatası:", err);
+            list.innerHTML = `<div style="padding:20px;text-align:center;color:#ff4444;font-size:0.6rem">BAĞLANTI HATASI<br><span style="color:#555;cursor:pointer" onclick="location.reload()">SAYFAYI YENİLE</span></div>`;
+        }
     }
-}
 
-// Dosya yüklendiğinde başlat
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initNewsWidget);
-} else {
-    initNewsWidget();
-}
+    // Başlat
+    if (document.readyState === 'complete') {
+        loadNews();
+    } else {
+        window.addEventListener('load', loadNews);
+    }
+    
+    // 5 dakikada bir yenile
+    setInterval(loadNews, 5 * 60 * 1000);
+
+    // Toggle mantığı
+    document.addEventListener('click', function(e) {
+        if (e.target.id === 'ffToggle') {
+            const body = document.getElementById('ffNewsList');
+            if (body) {
+                const isHidden = body.style.display === 'none';
+                body.style.display = isHidden ? 'block' : 'none';
+                e.target.textContent = isHidden ? '▲' : '▼';
+            }
+        }
+    });
+
+})();
