@@ -1,8 +1,9 @@
 (function() {
-    console.log("Haber & Takvim v20.0 (CORS Bypass Ultimate) Başlatıldı");
+    console.log("Haber & Takvim v21.0 (Google Proxy Mode) Başlatıldı");
 
     const CRYPTOPANIC_RSS = 'https://cryptopanic.com/news/rss/';
-    
+    const CRYPTOCOMPARE_API = 'https://min-api.cryptocompare.com/data/v2/news/?lang=EN';
+
     function formatTR(date) {
         return new Intl.DateTimeFormat('tr-TR', { 
             hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -16,64 +17,55 @@
     }
     setInterval(updateClock, 1000);
 
-    // JSONP Loader - CORS Engellerini %100 Aşar
-    function loadJSONP(url, callback) {
-        const callbackName = 'jsonp_' + Math.floor(Math.random() * 1000000);
-        window[callbackName] = function(data) {
-            callback(data);
-            document.body.removeChild(script);
-            delete window[callbackName];
-        };
-
-        const script = document.createElement('script');
-        script.src = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&callback=${callbackName}`;
-        script.onerror = () => {
-            console.error("JSONP Hatası");
-            document.body.removeChild(script);
-            delete window[callbackName];
-        };
-        document.body.appendChild(script);
-    }
-
-    function loadData() {
+    async function loadData() {
         const list = document.getElementById('ffNewsList');
         if (!list) return;
 
-        list.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#00ff41;font-size:0.6rem;opacity:0.7">GÜVENLİ KANAL BAĞLANTISI KURULUYOR...</div>';
+        list.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#00ff41;font-size:0.6rem;opacity:0.7">GOOGLE GÜVENLİ HATTI DENENİYOR...</div>';
 
-        loadJSONP(CRYPTOPANIC_RSS + '?t=' + Date.now(), function(data) {
-            if (data && data.contents) {
-                renderRSS(data.contents, list);
-            } else {
-                list.innerHTML = '<div style="padding:40px 10px;text-align:center;color:#f00;font-size:0.6rem">VERİ KANALI ŞU AN KAPALI.</div>';
+        // Strateji 1: Google Gadget Proxy (Bloklanması neredeyse imkansızdır)
+        const googleProxy = 'https://images1-focus-opensocial.googleusercontent.com/gadgets/proxy?container=focus&refresh=600&url=';
+        
+        try {
+            const res = await fetch(googleProxy + encodeURIComponent(CRYPTOCOMPARE_API));
+            if (!res.ok) throw new Error("Google Proxy Hatası");
+            const data = await res.json();
+            if (data && data.Data) {
+                renderNews(data.Data, list);
+                return;
             }
-        });
+        } catch (e) {
+            console.warn("Google Proxy başarısız, direkt deneme yapılıyor...");
+        }
+
+        // Strateji 2: Direkt Fetch (Eğer proxy engellendiyse ama API açıksa)
+        try {
+            const res = await fetch(CRYPTOCOMPARE_API);
+            const data = await res.json();
+            if (data && data.Data) {
+                renderNews(data.Data, list);
+                return;
+            }
+        } catch (e) {
+            list.innerHTML = '<div style="padding:40px 10px;text-align:center;color:#f00;font-size:0.6rem">TÜM KANALLAR ENGELLENDİ. (VPN/ADBLOCK KONTROL EDİN)</div>';
+        }
     }
 
-    function renderRSS(xmlText, container) {
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(xmlText, 'text/xml');
-        const items = Array.from(xml.querySelectorAll('item')).slice(0, 30);
-        
-        container.innerHTML = '<div style="padding:10px;color:#00ff41;font-size:0.55rem;text-align:center;opacity:0.6">CRYPTOPANIC CANLI AKIŞI</div>';
-        
-        items.forEach(item => {
-            const title = item.querySelector('title')?.textContent || '';
-            const link = item.querySelector('link')?.textContent || '#';
-            const pubDate = new Date(item.querySelector('pubDate')?.textContent || '');
-
+    function renderNews(items, container) {
+        container.innerHTML = '<div style="padding:10px;color:#00ff41;font-size:0.55rem;text-align:center;opacity:0.6">CANLI AKIŞ AKTİF</div>';
+        items.slice(0, 25).forEach(item => {
+            const pubDate = new Date(item.published_on * 1000);
             const row = document.createElement('div');
             row.style.padding = '12px 10px'; row.style.borderBottom = '1px solid #111'; row.style.fontSize = '0.7rem';
             row.style.cursor = 'pointer';
-            row.onclick = () => window.open(link, '_blank');
+            row.onclick = () => window.open(item.url, '_blank');
 
             row.innerHTML = `
                 <div style="display:flex;justify-content:space-between;margin-bottom:5px">
                     <span style="color:#eee;font-weight:bold;font-size:0.65rem">${formatTR(pubDate)} <span style="color:#555;font-weight:normal">| ${pubDate.toLocaleDateString('tr-TR')}</span></span>
-                    <span style="color:#00ff41;font-size:0.55rem;font-weight:bold">HABER</span>
+                    <span style="color:#00ff41;font-size:0.55rem;font-weight:bold">${item.source.toUpperCase()}</span>
                 </div>
-                <div style="color:#eee;font-weight:bold;line-height:1.3;margin-bottom:4px">${title}</div>
-                <div style="color:#444;font-size:0.55rem">KAYNAK: CryptoPanic</div>
+                <div style="color:#eee;font-weight:bold;line-height:1.3;margin-bottom:4px">${item.title}</div>
             `;
             container.appendChild(row);
         });
