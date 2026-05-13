@@ -1,16 +1,26 @@
 (function() {
-    console.log("Haber & Takvim v22.0 (CORSProxy.io Mode) Başlatıldı");
+    console.log("Haber & Takvim v23.0 (CryptoCompare Primary) Başlatıldı");
 
-    const NEWS_URL = 'https://min-api.cryptocompare.com/data/v2/news/?lang=EN';
-    const CALENDAR_URL = 'https://nfs.faireconomy.media/ff_calendar_thisweek.xml';
+    const CRYPTOCOMPARE_API = 'https://min-api.cryptocompare.com/data/v2/news/?lang=EN';
+    const PROXIES = [
+        'https://corsproxy.io/?',
+        'https://api.allorigins.win/get?url=',
+        'https://images1-focus-opensocial.googleusercontent.com/gadgets/proxy?container=focus&refresh=600&url='
+    ];
 
     function formatTR(date) {
-        return new Intl.DateTimeFormat('tr-TR', { hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Europe/Istanbul' }).format(date);
+        return new Intl.DateTimeFormat('tr-TR', { 
+            hour: '2-digit', minute: '2-digit', 
+            hour12: false, timeZone: 'Europe/Istanbul' 
+        }).format(date);
     }
 
     function updateClock() {
         const u = document.getElementById('ffLastUpdate');
-        if (u) u.innerHTML = `<span style="color:var(--dim);font-size:0.6rem">İSTANBUL:</span> <span style="color:#00ff41;font-weight:bold">${new Intl.DateTimeFormat('tr-TR', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone:'Europe/Istanbul' }).format(new Date())}</span>`;
+        if (u) {
+            const time = new Intl.DateTimeFormat('tr-TR', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone:'Europe/Istanbul' }).format(new Date());
+            u.innerHTML = `<span style="color:var(--dim);font-size:0.6rem">İSTANBUL:</span> <span style="color:#00ff41;font-weight:bold">${time}</span>`;
+        }
     }
     setInterval(updateClock, 1000);
 
@@ -18,20 +28,17 @@
         const list = document.getElementById('ffNewsList');
         if (!list) return;
 
-        list.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#00ff41;font-size:0.6rem;opacity:0.7">VERİ HATTI BAĞLANIYOR (V22)...</div>';
-
-        // Strateji: CORSProxy.io (En yeni ve en az engellenen proxy)
-        const proxies = [
-            'https://corsproxy.io/?',
-            'https://api.allorigins.win/get?url=',
-            'https://images1-focus-opensocial.googleusercontent.com/gadgets/proxy?container=focus&refresh=600&url='
-        ];
+        list.innerHTML = '<div style="padding:40px 20px;text-align:center;color:#00ff41;font-size:0.6rem;opacity:0.7">CRYPTOCOMPARE VERİLERİ ÇEKİLİYOR...</div>';
 
         let dataFound = false;
-        for (let p of proxies) {
+        
+        // Sırasıyla tüm proxy kanallarını CryptoCompare için dene
+        for (let p of PROXIES) {
             try {
-                const res = await fetch(p + encodeURIComponent(NEWS_URL + '?t=' + Date.now()));
+                const target = CRYPTOCOMPARE_API + '&t=' + Date.now();
+                const res = await fetch(p + encodeURIComponent(target));
                 let json;
+                
                 if (p.includes('allorigins')) {
                     const temp = await res.json();
                     json = JSON.parse(temp.contents);
@@ -39,28 +46,28 @@
                     json = await res.json();
                 }
 
-                if (json && json.Data) {
+                if (json && json.Data && json.Data.length > 0) {
                     renderNews(json.Data, list);
                     dataFound = true;
                     break;
                 }
-            } catch (e) { console.warn("Proxy başarısız:", p); }
+            } catch (e) { console.warn("Proxy Denemesi Başarısız:", p); }
         }
 
         if (!dataFound) {
-            // Eğer her şey başarısız olursa "Çevrimdışı Görünüm"
-            renderOffline(list);
+            renderError(list);
         }
     }
 
     function renderNews(items, container) {
-        container.innerHTML = '<div style="padding:10px;color:#00ff41;font-size:0.5rem;text-align:center;opacity:0.6">CANLI HABER AKIŞI AKTİF</div>';
-        items.slice(0, 20).forEach(item => {
+        container.innerHTML = '<div style="padding:10px;color:#00ff41;font-size:0.55rem;text-align:center;opacity:0.6">CRYPTOCOMPARE HABER AKIŞI AKTİF</div>';
+        items.slice(0, 25).forEach(item => {
             const pubDate = new Date(item.published_on * 1000);
             const row = document.createElement('div');
             row.style.padding = '12px 10px'; row.style.borderBottom = '1px solid #111'; row.style.fontSize = '0.7rem';
             row.style.cursor = 'pointer';
             row.onclick = () => window.open(item.url, '_blank');
+
             row.innerHTML = `
                 <div style="display:flex;justify-content:space-between;margin-bottom:5px">
                     <span style="color:#eee;font-weight:bold;font-size:0.65rem">${formatTR(pubDate)} <span style="color:#555;font-weight:normal">| ${pubDate.toLocaleDateString('tr-TR')}</span></span>
@@ -72,17 +79,15 @@
         });
     }
 
-    function renderOffline(container) {
+    function renderError(container) {
         container.innerHTML = `
-            <div style="padding:20px;text-align:center">
-                <div style="color:#ffaa00;font-size:0.65rem;margin-bottom:15px;font-weight:bold">!!! BAĞLANTI KISITLI !!!</div>
-                <div style="text-align:left;background:rgba(255,170,0,0.05);padding:10px;border:1px solid #332200;font-size:0.55rem;color:#888;line-height:1.4">
-                    Tarayıcınız veya VPN'iniz haber sunucularını engelliyor. Lütfen reklam engelleyicileri (AdBlock vb.) kapatıp deneyin.
-                </div>
-                <button onclick="location.reload()" style="margin-top:20px;background:transparent;border:1px solid #00ff41;color:#00ff41;padding:8px 20px;cursor:pointer;font-size:0.6rem">YENİDEN DENE</button>
+            <div style="padding:30px 10px;text-align:center">
+                <div style="color:#f00;font-size:0.7rem;margin-bottom:10px">BAĞLANTI HATASI</div>
+                <div style="color:#666;font-size:0.55rem;line-height:1.4">CryptoCompare sunucularına erişilemiyor. Lütfen VPN veya Reklam Engelleyiciyi kapatın.</div>
+                <button onclick="location.reload()" style="margin-top:15px;background:transparent;border:1px solid #333;color:#00ff41;padding:8px 15px;cursor:pointer;font-size:0.6rem">YENİDEN DENE</button>
             </div>`;
     }
 
     if (document.readyState === 'complete') loadData(); else window.addEventListener('load', loadData);
-    setInterval(loadData, 10 * 60 * 1000);
+    setInterval(loadData, 5 * 60 * 1000);
 })();
