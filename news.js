@@ -38,27 +38,28 @@ function analyzeSentiment(title) {
 }
 
 async function fetchFFNews() {
-    console.log("Haberler çekiliyor...");
+    console.log("Haberler güncelleniyor...");
     const list = document.getElementById('ffNewsList');
     if (!list) return;
 
-    list.innerHTML = '<div class="ff-loading">HABERLER GÜNCELLENİYOR...</div>';
+    list.innerHTML = '<div class="ff-loading">HABERLER YÜKLENİYOR...</div>';
+
+    // rss2json servisi tarayıcı engellerini aşmak için en güvenli yoldur
+    const apiURL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(NEWS_SOURCE)}`;
 
     try {
-        const res = await fetch(PROXY + encodeURIComponent(NEWS_SOURCE));
-        if (!res.ok) throw new Error('Proxy hatası');
-        
+        const res = await fetch(apiURL);
         const data = await res.json();
-        const parser = new DOMParser();
-        const xml = parser.parseFromString(data.contents, 'text/xml');
         
-        const items = Array.from(xml.querySelectorAll('item')).slice(0, 15);
+        if (data.status !== 'ok') throw new Error('Servis şu an meşgul');
+        
+        const items = data.items.slice(0, 15);
         if (!items.length) throw new Error('Haber bulunamadı');
 
         list.innerHTML = '';
         items.forEach(item => {
-            const title = item.querySelector('title')?.textContent || '';
-            const pubDate = item.querySelector('pubDate')?.textContent || '';
+            const title = item.title || '';
+            const pubDate = item.pubDate || '';
             const analysis = analyzeSentiment(title);
 
             const row = document.createElement('div');
@@ -80,10 +81,10 @@ async function fetchFFNews() {
 
     } catch (err) {
         list.innerHTML = `
-            <div class="ff-loading" style="color:#ff4444;cursor:pointer;font-size:0.65rem" onclick="fetchFFNews()">
-                BAĞLANTI HATASI<br>
-                <span style="font-size:0.55rem;color:#888">(${err.message})</span><br>
-                <span style="text-decoration:underline">YENİDEN DENE</span>
+            <div class="ff-loading" style="color:#ff4444;cursor:pointer;font-size:0.65rem;padding:10px" onclick="fetchFFNews()">
+                BAĞLANTI SORUNU<br>
+                <span style="font-size:0.55rem;color:#888">(Sunucu Yanıt Vermiyor)</span><br>
+                <span style="text-decoration:underline">TEKRAR DENE</span>
             </div>`;
     }
 }
