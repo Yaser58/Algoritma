@@ -1,36 +1,12 @@
-// ─── Ekonomik Takvim & Coin Etki Analizi ─────────────────────────────────────
-
-const CALENDAR_URL = 'https://www.forexfactory.com/ff_calendar_thisweek.xml';
-
-function analyzeImpact(item) {
-    const event = (item.event || '').toUpperCase();
-    const actual = parseFloat(item.actual);
-    const forecast = parseFloat(item.forecast);
-    
-    if (isNaN(actual) || isNaN(forecast)) return { text: 'BELİRSİZ', color: '#555', sentiment: 'neutral' };
-
-    // USD Güçlenirse -> Kripto Genelde Düşer (Ters Korelasyon)
-    // USD Zayıflarsa -> Kripto Genelde Yükselir
-    
-    let usdBullish = false;
-    const isHigherBetter = !event.includes('UNEMPLOYMENT') && !event.includes('CLAIMS') && !event.includes('CPI') && !event.includes('PPI');
-
-    if (isHigherBetter) {
-        usdBullish = actual > forecast;
-    } else {
-        // Enflasyon ve İşsizlikte düşük veri USD için genelde negatiftir (faiz indirimi beklentisi)
-        usdBullish = actual < forecast;
-    }
-// ─── Finansal Haber & Coin Etki Analizi (v3.0) ───────────────────────────────
+// ─── Finansal Haber & Coin Etki Analizi (v4.0) ───────────────────────────────
 
 const NEWS_SOURCE = 'https://www.dailyfx.com/feeds/forex-market-news';
-const PROXY = 'https://api.allorigins.win/get?url=';
 
 function analyzeSentiment(title) {
     const t = title.toLowerCase();
-    // USD güçlenirse Kripto genelde düşer
-    const usdBullish = t.includes('strong') || t.includes('rise') || t.includes('higher') || t.includes('gain') || t.includes('hawkish') || t.includes('beat');
-    const usdBearish = t.includes('weak') || t.includes('fall') || t.includes('lower') || t.includes('loss') || t.includes('dovish') || t.includes('miss');
+    // USD güçlenirse Kripto genelde düşer (Ters Korelasyon)
+    const usdBullish = t.includes('strong') || t.includes('rise') || t.includes('higher') || t.includes('gain') || t.includes('hawkish') || t.includes('beat') || t.includes('surge');
+    const usdBearish = t.includes('weak') || t.includes('fall') || t.includes('lower') || t.includes('loss') || t.includes('dovish') || t.includes('miss') || t.includes('drop');
 
     if (usdBullish) return { text: 'BEARISH (DÜŞÜŞ)', color: '#ff4444' };
     if (usdBearish) return { text: 'BULLISH (YÜKSELİŞ)', color: '#00ff41' };
@@ -38,14 +14,14 @@ function analyzeSentiment(title) {
 }
 
 async function fetchFFNews() {
-    console.log("Haberler güncelleniyor...");
+    console.log("Haberler güncelleniyor (v4.0)...");
     const list = document.getElementById('ffNewsList');
     if (!list) return;
 
     list.innerHTML = '<div class="ff-loading">HABERLER YÜKLENİYOR...</div>';
 
     // rss2json servisi tarayıcı engellerini aşmak için en güvenli yoldur
-    const apiURL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(NEWS_SOURCE)}`;
+    const apiURL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(NEWS_SOURCE)}&t=${Date.now()}`;
 
     try {
         const res = await fetch(apiURL);
@@ -80,6 +56,7 @@ async function fetchFFNews() {
         document.getElementById('ffLastUpdate').textContent = 'GÜNCEL: ' + new Date().toLocaleTimeString('tr-TR');
 
     } catch (err) {
+        console.error("Haber çekme hatası:", err);
         list.innerHTML = `
             <div class="ff-loading" style="color:#ff4444;cursor:pointer;font-size:0.65rem;padding:10px" onclick="fetchFFNews()">
                 BAĞLANTI SORUNU<br>
@@ -104,4 +81,9 @@ function initNewsWidget() {
     }
 }
 
-initNewsWidget();
+// Dosya yüklendiğinde başlat
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initNewsWidget);
+} else {
+    initNewsWidget();
+}
