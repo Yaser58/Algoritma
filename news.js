@@ -41,38 +41,35 @@ async function fetchFFNews() {
     const list = document.getElementById('ffNewsList');
     if (!list) return;
 
-    list.innerHTML = '<div class="ff-loading">VERİ ANALİZ EDİLİYOR...</div>';
+    list.innerHTML = '<div class="ff-loading">GÜVENLİ KANAL ÜZERİNDEN BAĞLANILIYOR...</div>';
+
+    // JSONP Yöntemi (CORS Engelini Tamamen Bypass Eder)
+    const fetchJSONP = (url) => {
+        return new Promise((resolve, reject) => {
+            const callbackName = 'jsonp_callback_' + Math.round(100000 * Math.random());
+            window[callbackName] = (data) => {
+                delete window[callbackName];
+                document.body.removeChild(script);
+                resolve(data.contents);
+            };
+
+            const script = document.createElement('script');
+            script.src = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&callback=${callbackName}`;
+            script.onerror = () => reject(new Error('JSONP yükleme hatası'));
+            document.body.appendChild(script);
+        });
+    };
 
     let xmlText = null;
-    let errorDetail = 'Bağlantı kurulamadı';
-
-    for (const proxy of PROXY_LIST) {
-        try {
-            console.log("Deniniyor:", proxy.url);
-            const res = await fetch(proxy.url + encodeURIComponent(CALENDAR_URL));
-            if (!res.ok) continue;
-
-            let text;
-            if (proxy.type === 'wrapped') {
-                const data = await res.json();
-                text = data.contents;
-            } else {
-                text = await res.text();
-            }
-
-            if (text && text.includes('<event>')) {
-                xmlText = text;
-                console.log("Başarılı proxy:", proxy.url);
-                break;
-            }
-        } catch (e) {
-            console.warn("Proxy başarısız:", proxy.url, e.message);
-            errorDetail = e.message;
-        }
-    }
+    let errorDetail = '';
 
     try {
-        if (!xmlText) throw new Error(errorDetail);
+        // Önce JSONP dene (En garanti yöntem)
+        xmlText = await fetchJSONP(CALENDAR_URL);
+        
+        if (!xmlText || !xmlText.includes('<event>')) {
+            throw new Error('Veri boş veya geçersiz');
+        }
 
         const parser = new DOMParser();
         const xml = parser.parseFromString(xmlText, 'text/xml');
