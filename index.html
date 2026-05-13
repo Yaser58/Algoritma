@@ -119,11 +119,19 @@
 
 <div id="rightSidebar">
     <div class="ff-header">
-        <span class="ff-title-main">ECONOMIC CALENDAR</span>
-        <button id="closeRight" class="toggle-btn">▶</button>
+        <div style="display:flex;flex-direction:column;gap:5px;width:100%">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <span class="ff-title-main">ECONOMIC CALENDAR</span>
+                <button id="closeRight" class="toggle-btn">▶</button>
+            </div>
+            <div style="display:flex;gap:5px;align-items:center">
+                <input type="date" id="ffDateFilter" style="flex:1;font-size:0.65rem;padding:4px;background:#000;border:1px solid #003b00;color:#00ff41">
+                <button id="ffRefresh" style="background:#003b00;border:none;color:#00ff41;padding:4px 8px;cursor:pointer;font-size:0.6rem">⟳</button>
+            </div>
+        </div>
     </div>
     <div id="ffNewsList"></div>
-    <div id="ffLastUpdate">SON: --:--</div>
+    <div id="ffLastUpdate">İSTANBUL: --:--:--</div>
 </div>
 
 <!-- Uygulama Modülleri -->
@@ -132,7 +140,7 @@
 <script src="chart.js"></script>
 <script src="trading.js"></script>
 <script src="data.js"></script>
-<script src="news.js?v=16.0"></script>
+<script src="news.js?v=17.0"></script>
 <script src="main.js"></script>
 
 </body>
