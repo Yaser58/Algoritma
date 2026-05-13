@@ -1,7 +1,12 @@
 // ─── Ekonomik Takvim & Coin Etki Analizi ─────────────────────────────────────
 
 const CALENDAR_URL = 'https://www.forexfactory.com/ff_calendar_thisweek.xml';
-const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
+const PROXY_LIST = [
+    'https://api.codetabs.com/v1/proxy?quest=',
+    'https://api.allorigins.win/raw?url=',
+    'https://corsproxy.io/?',
+    'https://thingproxy.freeboard.io/fetch/'
+];
 
 function analyzeImpact(item) {
     const event = (item.event || '').toUpperCase();
@@ -39,16 +44,33 @@ async function fetchFFNews() {
 
     list.innerHTML = '<div class="ff-loading">VERİ ANALİZ EDİLİYOR...</div>';
 
+    let xmlText = null;
+    let errorDetail = 'Bağlantı kurulamadı';
+
+    for (const proxy of PROXY_LIST) {
+        try {
+            const res = await fetch(proxy + encodeURIComponent(CALENDAR_URL));
+            if (res.ok) {
+                const text = await res.text();
+                if (text && text.includes('<event>')) {
+                    xmlText = text;
+                    break;
+                }
+            }
+        } catch (e) {
+            console.warn("Proxy hatası:", proxy);
+            errorDetail = e.message;
+        }
+    }
+
     try {
-        const res = await fetch(PROXY + encodeURIComponent(CALENDAR_URL));
-        if (!res.ok) throw new Error('Bağlantı reddedildi');
-        
-        const text = await res.text();
+        if (!xmlText) throw new Error(errorDetail);
+
         const parser = new DOMParser();
-        const xml = parser.parseFromString(text, 'text/xml');
+        const xml = parser.parseFromString(xmlText, 'text/xml');
         
-        const events = Array.from(xml.querySelectorAll('event')).slice(0, 20);
-        if (!events.length) throw new Error('Veri okunamadı');
+        const events = Array.from(xml.querySelectorAll('event')).slice(0, 30);
+        if (!events.length) throw new Error('Veri formatı geçersiz');
 
         list.innerHTML = '';
         
@@ -105,9 +127,10 @@ async function fetchFFNews() {
 
     } catch (err) {
         list.innerHTML = `
-            <div class="ff-loading" style="color:#ff4444;cursor:pointer" onclick="fetchFFNews()">
+            <div class="ff-loading" style="color:#ff4444;cursor:pointer;font-size:0.6rem;padding:15px" onclick="fetchFFNews()">
                 ANALİZ HATASI<br>
-                <span style="font-size:0.6rem;text-decoration:underline">YENİDEN DENE</span>
+                <span style="color:#888;font-size:0.55rem">(${err.message})</span><br><br>
+                <span style="text-decoration:underline;color:var(--green)">YENİDEN DENE</span>
             </div>`;
     }
 }
