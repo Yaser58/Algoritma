@@ -1,5 +1,5 @@
 (function() {
-    console.log("Haber & Takvim v25.0 (Dual-Engine Mode) Başlatıldı");
+    console.log("Haber & Takvim v26.0 (Global Authority Mode) Başlatıldı");
 
     let currentMode = 'tradingview';
 
@@ -25,7 +25,7 @@
     }
 
     function toggleMode() {
-        currentMode = (currentMode === 'tradingview') ? 'cryptocompare' : 'tradingview';
+        currentMode = (currentMode === 'tradingview') ? 'investing' : 'tradingview';
         loadNews();
     }
 
@@ -56,29 +56,16 @@
             });
             tvContainer.appendChild(script);
         } else {
-            // CryptoCompare Widget (Bloklanmaz Altyapı)
-            const ccContainer = document.createElement('div');
-            ccContainer.innerHTML = `
-                <div style="height:100%; background:transparent;">
-                    <div style="padding:10px; color:#00ff41; font-size:0.6rem; text-align:center; opacity:0.6">CRYPTOCOMPARE GLOBAL HABERLER</div>
-                    <script type="text/javascript">
-                        baseUrl = "https://widgets.cryptocompare.com/";
-                        var scripts = document.getElementsByTagName("script");
-                        var embedder = scripts[scripts.length - 1];
-                        (function (){
-                        var appName = encodeURIComponent(window.location.hostname);
-                        if(appName==""){appName="local";}
-                        var s = document.createElement("script");
-                        s.type = "text/javascript";
-                        s.async = true;
-                        var theUrl = baseUrl+'serve/v1/coin/feed?fsym=BTC&tsym=USD&feedType=cryptopanic';
-                        s.src = theUrl + ( theUrl.indexOf("?") >= 0 ? "&" : "?" ) + "app=" + appName;
-                        embedder.parentNode.appendChild(s);
-                        })();
-                    </script>
-                </div>
+            // Investing.com Global News Widget (TR)
+            // Bu altyapı Türkiye'de en çok kullanılan ve engellenmeyen profesyonel haber hattıdır.
+            const invContainer = document.createElement('div');
+            invContainer.style.height = '100%';
+            invContainer.innerHTML = `
+                <iframe src="https://tr.investing.com/widgets/news?container_width=100%&height=100%&show_news_headers=0&show_news_tabs=0&show_news_providers=1&show_news_date=1&show_news_summary=1&show_news_image=0&news_providers=1,2,3,4,5&news_tabs=1,2,3&language=10" 
+                        width="100%" height="100%" frameborder="0" allowtransparency="true" marginwidth="0" marginheight="0">
+                </iframe>
             `;
-            container.appendChild(ccContainer);
+            container.appendChild(invContainer);
         }
     }
 
