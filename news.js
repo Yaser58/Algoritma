@@ -1,118 +1,120 @@
-// ─── Finansal Haber Widget ───────────────────────────────────────────────
+// ─── Ekonomik Takvim & Coin Etki Analizi ─────────────────────────────────────
 
-const SOURCES = [
-    { name: 'ForexFactory', url: 'https://www.forexfactory.com/rss.php' },
-    { name: 'DailyFX', url: 'https://www.dailyfx.com/feeds/forex-market-news' }
-];
+const CALENDAR_URL = 'https://www.forexfactory.com/ff_calendar_thisweek.xml';
+const PROXY = 'https://api.codetabs.com/v1/proxy?quest=';
 
-const PROXY_LIST = [
-    'https://api.rss2json.com/v1/api.json?rss_url=',
-    'https://api.codetabs.com/v1/proxy?quest=',
-    'https://corsproxy.io/?'
-];
+function analyzeImpact(item) {
+    const event = (item.event || '').toUpperCase();
+    const actual = parseFloat(item.actual);
+    const forecast = parseFloat(item.forecast);
+    
+    if (isNaN(actual) || isNaN(forecast)) return { text: 'BELİRSİZ', color: '#555', sentiment: 'neutral' };
 
-function impactColor(title, desc) {
-    const text = (title + ' ' + desc).toLowerCase();
-    if (text.includes('high') || text.includes('yüksek') || text.includes('critical')) return '#ff0000';
-    if (text.includes('medium') || text.includes('orta') || text.includes('important')) return '#ffaa00';
-    if (text.includes('low') || text.includes('düşük')) return '#00ff41';
-    return '#555';
-}
+    // USD Güçlenirse -> Kripto Genelde Düşer (Ters Korelasyon)
+    // USD Zayıflarsa -> Kripto Genelde Yükselir
+    
+    let usdBullish = false;
+    const isHigherBetter = !event.includes('UNEMPLOYMENT') && !event.includes('CLAIMS') && !event.includes('CPI') && !event.includes('PPI');
 
-function formatTime(dateStr) {
-    if (!dateStr) return '—';
-    const d = new Date(dateStr);
-    if (isNaN(d)) return '—';
-    return d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
-}
-
-async function fetchNewsFromSource(source) {
-    for (const proxyBase of PROXY_LIST) {
-        try {
-            const url = proxyBase + encodeURIComponent(source.url);
-            const res = await fetch(url);
-            if (!res.ok) continue;
-
-            if (proxyBase.includes('rss2json')) {
-                const data = await res.json();
-                if (data.status === 'ok') {
-                    return data.items.map(item => ({
-                        title: item.title,
-                        pubDate: item.pubDate,
-                        description: item.description,
-                        source: source.name
-                    }));
-                }
-            } else {
-                const text = await res.text();
-                const parser = new DOMParser();
-                const xml = parser.parseFromString(text, 'text/xml');
-                if (xml.getElementsByTagName("parsererror").length > 0) continue;
-                
-                return Array.from(xml.querySelectorAll('item')).map(item => ({
-                    title: item.querySelector('title')?.textContent || '',
-                    pubDate: item.querySelector('pubDate')?.textContent || '',
-                    description: item.querySelector('description')?.textContent || '',
-                    source: source.name
-                }));
-            }
-        } catch (e) {
-            console.warn(`${source.name} via ${proxyBase} failed`);
-        }
+    if (isHigherBetter) {
+        usdBullish = actual > forecast;
+    } else {
+        // Enflasyon ve İşsizlikte düşük veri USD için genelde negatiftir (faiz indirimi beklentisi)
+        usdBullish = actual < forecast;
     }
-    return null;
+
+    if (actual === forecast) return { text: 'NÖTR', color: '#888', sentiment: 'neutral' };
+
+    // Kripto Etkisi: USD Bullish ise Kripto Bearish, USD Bearish ise Kripto Bullish
+    if (usdBullish) {
+        return { text: 'BEARISH (DÜŞÜŞ)', color: '#ff4444', sentiment: 'bearish' };
+    } else {
+        return { text: 'BULLISH (YÜKSELİŞ)', color: '#00ff41', sentiment: 'bullish' };
+    }
 }
 
 async function fetchFFNews() {
     const list = document.getElementById('ffNewsList');
     if (!list) return;
 
-    list.innerHTML = '<div class="ff-loading">HABERLER TARANIYOR...</div>';
+    list.innerHTML = '<div class="ff-loading">VERİ ANALİZ EDİLİYOR...</div>';
 
-    let allNews = [];
-    
-    // Her iki kaynağı da dene
-    for (const source of SOURCES) {
-        const news = await fetchNewsFromSource(source);
-        if (news && news.length) {
-            allNews = allNews.concat(news);
-            break; // Birinden veri aldıysak yeterli
+    try {
+        const res = await fetch(PROXY + encodeURIComponent(CALENDAR_URL));
+        if (!res.ok) throw new Error('Bağlantı reddedildi');
+        
+        const text = await res.text();
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(text, 'text/xml');
+        
+        const events = Array.from(xml.querySelectorAll('event')).slice(0, 20);
+        if (!events.length) throw new Error('Veri okunamadı');
+
+        list.innerHTML = '';
+        
+        events.forEach(ev => {
+            const data = {
+                title: ev.querySelector('title')?.textContent || '',
+                event: ev.querySelector('event')?.textContent || '',
+                country: ev.querySelector('country')?.textContent || '',
+                date: ev.querySelector('date')?.textContent || '',
+                time: ev.querySelector('time')?.textContent || '',
+                impact: ev.querySelector('impact')?.textContent || '',
+                forecast: ev.querySelector('forecast')?.textContent || '',
+                actual: ev.querySelector('actual')?.textContent || ''
+            };
+
+            if (data.country !== 'USD') return; // Sadece USD etkileyenleri göster (Kripto için en kritik olan)
+
+            const analysis = analyzeImpact(data);
+            const impactColorMap = { 'High': '#ff0000', 'Medium': '#ffaa00', 'Low': '#00ff41' };
+            const dotColor = impactColorMap[data.impact] || '#555';
+
+            const row = document.createElement('div');
+            row.className = 'ff-row';
+            row.style.flexDirection = 'column';
+            row.style.alignItems = 'flex-start';
+            row.style.gap = '2px';
+            row.style.padding = '8px 10px';
+
+            row.innerHTML = `
+                <div style="display:flex;justify-content:space-between;width:100%;font-size:0.6rem;color:var(--dim)">
+                    <span>${data.date} ${data.time}</span>
+                    <span style="color:${dotColor};font-weight:bold">${data.impact.toUpperCase()}</span>
+                </div>
+                <div style="font-weight:bold;color:#eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%">
+                    ${data.title}
+                </div>
+                <div style="display:flex;gap:10px;font-size:0.65rem;margin-top:2px">
+                    <span style="color:#888">Beklenti: ${data.forecast || '-'}</span>
+                    <span style="color:#fff">Açıklanan: ${data.actual || '-'}</span>
+                </div>
+                <div style="margin-top:4px;font-size:0.7rem;font-weight:bold;color:${analysis.color}">
+                    COIN ETKİSİ: ${analysis.text}
+                </div>
+            `;
+            list.appendChild(row);
+        });
+
+        if (list.innerHTML === '') {
+            list.innerHTML = '<div class="ff-loading">Yakın zamanda USD haberi yok.</div>';
         }
-    }
 
-    if (!allNews.length) {
+        document.getElementById('ffLastUpdate').textContent =
+            'ANALİZ: ' + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+
+    } catch (err) {
         list.innerHTML = `
-            <div class="ff-loading" style="color:#ff4444;cursor:pointer;font-size:0.6rem" onclick="fetchFFNews()">
-                BAĞLANTI SORUNU<br>
-                (Proxy veya Kaynak Engeli)<br>
-                <span style="text-decoration:underline">TEKRAR DENE</span>
+            <div class="ff-loading" style="color:#ff4444;cursor:pointer" onclick="fetchFFNews()">
+                ANALİZ HATASI<br>
+                <span style="font-size:0.6rem;text-decoration:underline">YENİDEN DENE</span>
             </div>`;
-        return;
     }
-
-    // Tarihe göre sırala (en yeni üstte)
-    allNews.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-
-    list.innerHTML = '';
-    allNews.slice(0, 15).forEach(item => {
-        const impact = impactColor(item.title, item.description);
-        const row = document.createElement('div');
-        row.className = 'ff-row';
-        row.innerHTML = `
-            <span class="ff-dot" style="background:${impact};box-shadow:0 0 4px ${impact}"></span>
-            <span class="ff-time">${formatTime(item.pubDate)}</span>
-            <span class="ff-title" title="${item.title}">${item.title.replace(/\[.*?\]/g, '').trim()}</span>
-        `;
-        list.appendChild(row);
-    });
-
-    document.getElementById('ffLastUpdate').textContent =
-        'SON: ' + new Date().toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
 }
 
 function initNewsWidget() {
     fetchFFNews();
-    setInterval(fetchFFNews, 5 * 60 * 1000);
+    setInterval(fetchFFNews, 10 * 60 * 1000); // 10 dakikada bir
 
     const toggleBtn = document.getElementById('ffToggle');
     const newsBody  = document.getElementById('ffNewsList');
@@ -125,8 +127,4 @@ function initNewsWidget() {
     }
 }
 
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initNewsWidget);
-} else {
-    initNewsWidget();
-}
+initNewsWidget();
