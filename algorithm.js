@@ -10,36 +10,39 @@
      P  = İkinci yükselişin tepesi; Q'yu GEÇMEZ (P < Q).
      W2 = P sonrası geri çekiliş dibi; W1'in ALTINA inmez (W2 > W1).
      SİNYAL = Fiyat P seviyesini yukarı kırınca (close > P) -> AL.
+   ------------------------------------------------------------
+   Çekirdek tespit `findQP(arr,...)` saf fonksiyondur (DOM/grafik yok),
+   böylece hem aktif grafikte hem de tüm BIST taramasında kullanılır.
    ============================================================ */
 
 // Fibonacci seviyeleri (chart.js'teki fibSeries sırası ile birebir aynı olmalı)
 const QP_FIB_LEVELS = [1.0, 0.786, 0.618, 0.5, 0.382, 0];
 
-// --- Salınım (swing) yardımcıları ---
-function isSwingHigh(index, lookback = 3) {
-    if (index < lookback || index > candles.length - lookback - 1) return false;
-    const h = candles[index].high;
+// --- Salınım (swing) yardımcıları (verilen mum dizisi üzerinde çalışır) ---
+function _isSwingHigh(arr, index, lookback) {
+    if (index < lookback || index > arr.length - lookback - 1) return false;
+    const h = arr[index].high;
     for (let i = 1; i <= lookback; i++) {
-        if (candles[index - i].high >= h || candles[index + i].high > h) return false;
+        if (arr[index - i].high >= h || arr[index + i].high > h) return false;
     }
     return true;
 }
 
-function isSwingLow(index, lookback = 3) {
-    if (index < lookback || index > candles.length - lookback - 1) return false;
-    const l = candles[index].low;
+function _isSwingLow(arr, index, lookback) {
+    if (index < lookback || index > arr.length - lookback - 1) return false;
+    const l = arr[index].low;
     for (let i = 1; i <= lookback; i++) {
-        if (candles[index - i].low <= l || candles[index + i].low < l) return false;
+        if (arr[index - i].low <= l || arr[index + i].low < l) return false;
     }
     return true;
 }
 
 // Mum dizisinden alternatif (H/L/H/L...) zigzag tepe-dip dizisi üretir
-function getZigzag(lookback) {
+function _getZigzag(arr, lookback) {
     const piv = [];
-    for (let i = lookback; i < candles.length - lookback; i++) {
-        if (isSwingHigh(i, lookback)) piv.push({ i, type: 'H', price: candles[i].high, time: candles[i].time });
-        else if (isSwingLow(i, lookback)) piv.push({ i, type: 'L', price: candles[i].low, time: candles[i].time });
+    for (let i = lookback; i < arr.length - lookback; i++) {
+        if (_isSwingHigh(arr, i, lookback)) piv.push({ i, type: 'H', price: arr[i].high, time: arr[i].time });
+        else if (_isSwingLow(arr, i, lookback)) piv.push({ i, type: 'L', price: arr[i].low, time: arr[i].time });
     }
     // Aynı tipte arka arkaya gelenlerde en uç (en yüksek H / en düşük L) noktayı tut
     const zz = [];
@@ -55,56 +58,19 @@ function getZigzag(lookback) {
     return zz;
 }
 
-function clearFib() {
-    if (typeof fibSeries !== 'undefined') fibSeries.forEach(s => s.setData([]));
-}
-
-// Geçerli desenin A-B aralığı için fibonacci seviyelerini çizer
-function drawFib(p) {
-    const range = p.A.price - p.B.price;
-    const startI = p.A.i;
-    const refI = (p.sigIdx !== -1 ? p.sigIdx : p.W2.i);
-    const endI = Math.min(refI + 30, candles.length);
-    QP_FIB_LEVELS.forEach((lvl, idx) => {
-        if (!fibSeries[idx]) return;
-        const val = p.B.price + range * lvl;
-        const data = [];
-        for (let k = startI; k < endI; k++) data.push({ time: candles[k].time, value: val });
-        fibSeries[idx].setData(data);
-    });
-    for (let idx = QP_FIB_LEVELS.length; idx < fibSeries.length; idx++) fibSeries[idx].setData([]);
-}
-
-// Desenin tepe/dip noktalarını grafikte etiketler
-function labelPattern(markers, p) {
-    const add = (piv, text, color, pos) => markers.push({
-        time: candles[piv.i].time, position: pos, color, shape: 'circle', text, size: 1
-    });
-    add(p.A, 'A', '#ff5252', 'aboveBar');
-    add(p.B, 'B', '#9e9e9e', 'belowBar');
-    add(p.Q, 'Q', '#ffca28', 'aboveBar');
-    add(p.W1, 'W1', '#29b6f6', 'belowBar');
-    add(p.P, 'P', '#ffca28', 'aboveBar');
-    add(p.W2, 'W2', '#29b6f6', 'belowBar');
-}
-
 /**
- * QP TRADING desenini tespit eder.
- * @returns {{ markers: Array, signals: Array }}
+ * SAF QP TESPİTİ — herhangi bir mum dizisinde deseni arar (yan etki yok).
+ * @returns {{ latest: object|null, signals: Array }}
+ *   latest: en güncel geçerli iskelet { A,B,Q,W1,P,W2, pLevel, sigIdx, sl, tp }
+ *   signals: kırılımı gerçekleşmiş desenler [{ index, type, sl, tp }]
  */
-function detectQP() {
-    const enabled = document.getElementById('qpE')?.checked;
-    if (!enabled || candles.length < 60) { clearFib(); return { markers: [], signals: [] }; }
+function findQP(arr, minDrop, tol, lb) {
+    const out = { latest: null, signals: [] };
+    if (!arr || arr.length < 60) return out;
 
-    const minDrop = (+document.getElementById('qpDrop').value || 2) / 100;  // dik düşüş eşiği
-    const tol = (+document.getElementById('qpTol').value || 3) / 100;       // fibo temas toleransı
-    const lb = Math.min(8, Math.max(2, +document.getElementById('qpSwing').value || 3));
+    const zz = _getZigzag(arr, lb);
+    const seen = new Set();
 
-    const zz = getZigzag(lb);
-    const patterns = [];
-    let latest = null;
-
-    // zigzag dizisinde H-L-H-L-H-L iskeletini ara
     for (let k = 0; k + 5 < zz.length; k++) {
         const A = zz[k], B = zz[k + 1], Q = zz[k + 2], W1 = zz[k + 3], P = zz[k + 4], W2 = zz[k + 5];
         if (A.type !== 'H' || B.type !== 'L' || Q.type !== 'H' || W1.type !== 'L' || P.type !== 'H' || W2.type !== 'L') continue;
@@ -136,38 +102,73 @@ function detectQP() {
         // İskelet geçerli -> W2 sonrası P kırılımını (close > P) ara
         const pLevel = P.price;
         let sigIdx = -1;
-        for (let j = W2.i + 1; j < candles.length; j++) {
-            if (candles[j].low < W1.price) break;          // W1 kırılırsa desen geçersiz
-            if (candles[j].close > pLevel) { sigIdx = j; break; }
+        for (let j = W2.i + 1; j < arr.length; j++) {
+            if (arr[j].low < W1.price) break;              // W1 kırılırsa desen geçersiz
+            if (arr[j].close > pLevel) { sigIdx = j; break; }
         }
 
-        const pat = {
-            A, B, Q, W1, P, W2, pLevel, sigIdx,
-            sl: W1.price,        // yapısal stop: W1'in altı
-            tp: A.price          // hedef: düşüşün başladığı tepe (A)
-        };
-        patterns.push(pat);
-        latest = pat; // zigzag kronolojik -> en son geçerli desen
+        const pat = { A, B, Q, W1, P, W2, pLevel, sigIdx, sl: W1.price, tp: A.price };
+        out.latest = pat; // zigzag kronolojik -> en son geçerli desen
+        if (sigIdx !== -1 && !seen.has(sigIdx)) {
+            seen.add(sigIdx);
+            out.signals.push({ index: sigIdx, type: 'BUY', sl: pat.sl, tp: pat.tp });
+        }
     }
+    return out;
+}
+
+function clearFib() {
+    if (typeof fibSeries !== 'undefined') fibSeries.forEach(s => s.setData([]));
+}
+
+// Geçerli desenin A-B aralığı için fibonacci seviyelerini çizer (aktif grafik)
+function drawFib(p) {
+    const range = p.A.price - p.B.price;
+    const startI = p.A.i;
+    const refI = (p.sigIdx !== -1 ? p.sigIdx : p.W2.i);
+    const endI = Math.min(refI + 30, candles.length);
+    QP_FIB_LEVELS.forEach((lvl, idx) => {
+        if (!fibSeries[idx]) return;
+        const val = p.B.price + range * lvl;
+        const data = [];
+        for (let k = startI; k < endI; k++) data.push({ time: candles[k].time, value: val });
+        fibSeries[idx].setData(data);
+    });
+    for (let idx = QP_FIB_LEVELS.length; idx < fibSeries.length; idx++) fibSeries[idx].setData([]);
+}
+
+// Desenin tepe/dip noktalarını grafikte etiketler
+function labelPattern(markers, p) {
+    const add = (piv, text, color, pos) => markers.push({
+        time: piv.time, position: pos, color, shape: 'circle', text, size: 1
+    });
+    add(p.A, 'A', '#ff5252', 'aboveBar');
+    add(p.B, 'B', '#9e9e9e', 'belowBar');
+    add(p.Q, 'Q', '#ffca28', 'aboveBar');
+    add(p.W1, 'W1', '#29b6f6', 'belowBar');
+    add(p.P, 'P', '#ffca28', 'aboveBar');
+    add(p.W2, 'W2', '#29b6f6', 'belowBar');
+}
+
+// Aktif grafik için QP tespiti: ayarları DOM'dan okur, fibo+etiket çizer
+function detectQP() {
+    const enabled = document.getElementById('qpE')?.checked;
+    if (!enabled || candles.length < 60) { clearFib(); return { markers: [], signals: [] }; }
+
+    const minDrop = (+document.getElementById('qpDrop').value || 2) / 100;
+    const tol = (+document.getElementById('qpTol').value || 3) / 100;
+    const lb = Math.min(8, Math.max(2, +document.getElementById('qpSwing').value || 3));
+
+    const res = findQP(candles, minDrop, tol, lb);
 
     const markers = [];
-    if (latest) {
-        drawFib(latest);
-        labelPattern(markers, latest);
+    if (res.latest) {
+        drawFib(res.latest);
+        labelPattern(markers, res.latest);
     } else {
         clearFib();
     }
-
-    // Kırılımı gerçekleşmiş desenleri sinyal olarak topla (tekrarsız)
-    const signals = [];
-    const seen = new Set();
-    patterns.forEach(p => {
-        if (p.sigIdx === -1 || seen.has(p.sigIdx)) return;
-        seen.add(p.sigIdx);
-        signals.push({ index: p.sigIdx, type: 'BUY', sl: p.sl, tp: p.tp });
-    });
-
-    return { markers, signals };
+    return { markers, signals: res.signals };
 }
 
 function calcInd() {

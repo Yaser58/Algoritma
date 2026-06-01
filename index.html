@@ -124,6 +124,17 @@
         </div>
     </div>
     <div id="ffNewsList"></div>
+
+    <div id="qpScanPanel">
+        <select id="qpScanScope">
+            <option value="liquid" selected>Likit Hisseler (~50, hızlı)</option>
+            <option value="all">Tüm BIST (~500, yavaş)</option>
+        </select>
+        <button id="qpScanBtn" onclick="toggleScan()">▶ QP TARAMASI BAŞLAT</button>
+        <div id="qpScanStatus">QP deseni olan hisseleri tarar ve listeler. Tıklayınca grafiğe geçer.</div>
+        <div id="qpScanResults"></div>
+    </div>
+
     <div id="ffLastUpdate">İSTANBUL: --:--:--</div>
 </div>
 
@@ -135,6 +146,7 @@
 <script src="data.js"></script>
 <script src="news.js?v=33.0"></script>
 <script src="main.js"></script>
+<script src="scanner.js"></script>
 
 </body>
 </html>
