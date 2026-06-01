@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Yaser ER Algoritma - Modüler Sistem</title>
+    <title>Yaser ER Algoritma — QP Trading (BIST)</title>
     
     <!-- Kütüphaneler -->
     <script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
@@ -22,8 +22,9 @@
         <button id="closeLeft" class="toggle-btn">◀</button>
     </div>
     <div class="section">
-        <div class="stitle">[ PARİTE ]</div>
-        <div class="pgrid" id="pG"></div>
+        <div class="stitle">[ HİSSE SENEDİ — BIST ]</div>
+        <input type="text" id="pSearch" placeholder="Hisse ara (örn: THYAO, GARAN)..." autocomplete="off">
+        <div class="pgrid stock-list" id="pG"></div>
     </div>
     <div class="section">
         <div class="stitle">[ ZAMAN DİLİMİ ]</div>
@@ -42,32 +43,24 @@
         <label for="rs2">Hacim RSI 2 (Hızlı)</label><input type="number" id="rs2" value="25">
         
         <div class="sS" style="margin-top:10px">
-            <div class="stitle" style="margin-bottom:8px">SİNYAL AYARLARI</div>
-            <div style="display:flex;gap:10px;margin-bottom:10px;align-items:center">
+            <div class="stitle" style="margin-bottom:8px">SİNYAL: QP TRADING</div>
+            <div style="display:flex;gap:10px;margin-bottom:12px;align-items:center">
                 <label class="sw">
-                    <input type="checkbox" id="alg1E">
+                    <input type="checkbox" id="qpE" checked>
                     <span class="slid"></span>
                 </label>
-                <span style="font-size:0.7rem;color:var(--dim)">ALGORİTMA 1</span>
+                <span style="font-size:0.7rem;color:var(--dim)">QP TRADING AKTİF</span>
             </div>
-            <div style="display:flex;gap:10px;align-items:center">
-                <label class="sw">
-                    <input type="checkbox" id="alg2E" checked>
-                    <span class="slid"></span>
-                </label>
-                <span style="font-size:0.7rem;color:var(--dim)">ALGORİTMA 2 (QUANT-MASTER)</span>
-            </div>
-            
-            <div style="display:flex;gap:10px;margin-top:10px;align-items:center">
-                <label class="sw">
-                    <input type="checkbox" id="sqpE" checked>
-                    <span class="slid"></span>
-                </label>
-                <span style="font-size:0.7rem;color:var(--dim)">S-Q-P STRATEJİSİ</span>
-            </div>
-            
+
+            <label for="qpDrop">Min. Dik Düşüş (%)</label>
+            <input type="number" id="qpDrop" value="2" step="0.5" min="0.5">
+            <label for="qpTol">Fibo Temas Toleransı (%)</label>
+            <input type="number" id="qpTol" value="3" step="0.5" min="0">
+            <label for="qpSwing">Salınım Hassasiyeti (bar)</label>
+            <input type="number" id="qpSwing" value="3" min="2" max="8" step="1">
+
             <button onclick="runBacktest()" style="width:100%;margin-top:15px;padding:8px;background:var(--green);color:#000;font-weight:bold;border:none;border-radius:4px;cursor:pointer">BACKTEST ÇALIŞTIR</button>
-            
+
             <div id="btRes" style="margin-top:10px;padding:10px;background:#001a00;border:1px solid var(--green);border-radius:4px;display:none;font-size:0.75rem">
                 <div id="btStats"></div>
             </div>
@@ -86,15 +79,15 @@
 <div id="main">
     <div id="chartBox">
         <div class="ov" id="infoOv">
-            <div id="sN" style="font-weight:700;color:#fff;font-size:1rem">BTCUSDT</div>
+            <div id="sN" style="font-weight:700;color:#fff;font-size:1rem">THYAO</div>
             <div id="sP" style="font-size:1.3rem;margin:4px 0">—</div>
             <div id="sC" style="font-size:.75rem">0.00%</div>
         </div>
         <div class="ov" id="portOv">
-            <div class="sc"><span class="sl">BAKİYE</span><span class="sv" id="bV">$100.00</span></div>
-            <div class="sc"><span class="sl">AÇIK PNL</span><span class="sv" id="pV">$0.00</span></div>
+            <div class="sc"><span class="sl">BAKİYE</span><span class="sv" id="bV">₺100.00</span></div>
+            <div class="sc"><span class="sl">AÇIK PNL</span><span class="sv" id="pV">₺0.00</span></div>
             <div class="sc"><span class="sl">İŞLEM</span><span class="sv" id="tC">0</span></div>
-            <div class="sc"><span class="sl">K/Z</span><span class="sv" id="pS">+$0.00</span></div>
+            <div class="sc"><span class="sl">K/Z</span><span class="sv" id="pS">+₺0.00</span></div>
         </div>
         <div class="ov" id="connOv" style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">
             <div style="display:flex;align-items:center;gap:6px">

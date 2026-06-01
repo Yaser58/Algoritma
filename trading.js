@@ -3,66 +3,65 @@ function updPnl(){
     const pnl=pos.t==='BUY'?(cp-pos.e)*pos.a:(pos.e-cp)*pos.a;
     const el=document.getElementById('pV');
     if(el) {
-        el.innerText=(pnl>=0?'+':'')+'$'+pnl.toFixed(2);
+        el.innerText=(pnl>=0?'+':'')+'₺'+pnl.toFixed(2);
         el.style.color=pnl>=0?'#00ff41':'#ff0000';
     }
 
-    // Auto-close check for SL/TP
+    // SL/TP otomatik kapanış kontrolü
+    const px = cp.toFixed(currentPrecision);
     if (pos.t === 'BUY') {
-        if (cp <= pos.sl) { sLog('STOP LOSS ÇALIŞTI (SELL @ ' + cp.toFixed(2) + ')'); closeP(); }
-        else if (cp >= pos.tp) { sLog('KAR AL ÇALIŞTI (SELL @ ' + cp.toFixed(2) + ')'); closeP(); }
+        if (cp <= pos.sl) { sLog('STOP LOSS ÇALIŞTI (SAT @ ₺' + px + ')'); closeP(); }
+        else if (cp >= pos.tp) { sLog('KAR AL ÇALIŞTI (SAT @ ₺' + px + ')'); closeP(); }
     } else {
-        if (cp >= pos.sl) { sLog('STOP LOSS ÇALIŞTI (BUY @ ' + cp.toFixed(2) + ')'); closeP(); }
-        else if (cp <= pos.tp) { sLog('KAR AL ÇALIŞTI (BUY @ ' + cp.toFixed(2) + ')'); closeP(); }
+        if (cp >= pos.sl) { sLog('STOP LOSS ÇALIŞTI (AL @ ₺' + px + ')'); closeP(); }
+        else if (cp <= pos.tp) { sLog('KAR AL ÇALIŞTI (AL @ ₺' + px + ')'); closeP(); }
     }
 }
 
 function openP(t){
     if(pos||cp===0)return;
-    // ICT Dinamik SL/TP
-    let sl = t==='BUY' ? lastSwingLow : lastSwingHigh;
-    if (!sl || Math.abs(cp - sl) / cp > 0.015) {
-        sl = t==='BUY' ? cp * 0.995 : cp * 1.005;
-    }
+    // Manuel pozisyon: %1 risk, 1:2 risk/ödül
+    const sl = t==='BUY' ? cp * 0.99 : cp * 1.01;
     const risk = Math.abs(cp - sl);
     const tp = t==='BUY' ? cp + risk * 2 : cp - risk * 2;
-    
+
     pos={t, e:cp, a:bal/cp, sl, tp}; trd++;
     document.getElementById('tC').innerText=trd;
     document.getElementById('clB').style.display='block';
     document.getElementById('clB').innerText=t+' KAPAT';
-    sLog(`POZ AÇILDI: ${t} @ ${cp.toFixed(2)} | TP: ${tp.toFixed(2)} SL: ${sl.toFixed(2)}`);
+    const pr = currentPrecision;
+    sLog(`POZ AÇILDI: ${t} @ ₺${cp.toFixed(pr)} | TP: ₺${tp.toFixed(pr)} SL: ₺${sl.toFixed(pr)}`);
 }
 
 function closeP(){
     if(!pos)return;
     const pnl=pos.t==='BUY'?(cp-pos.e)*pos.a:(pos.e-cp)*pos.a;
     bal+=pnl; pnlT+=pnl;
-    document.getElementById('bV').innerText='$'+bal.toFixed(2);
+    document.getElementById('bV').innerText='₺'+bal.toFixed(2);
     const ps=document.getElementById('pS');
     if(ps) {
-        ps.innerText=(pnlT>=0?'+':'')+'$'+pnlT.toFixed(2);
+        ps.innerText=(pnlT>=0?'+':'')+'₺'+pnlT.toFixed(2);
         ps.style.color=pnlT>=0?'#00ff41':'#ff0000';
     }
-    document.getElementById('pV').innerText='$0.00';
+    document.getElementById('pV').innerText='₺0.00';
     document.getElementById('pV').style.color='#fff';
-    
+
     pos=null; document.getElementById('clB').style.display='none';
-    sLog('POZ KAPANDI. PNL: '+pnl.toFixed(2));
+    sLog('POZ KAPANDI. PNL: ₺'+pnl.toFixed(2));
 }
 
 function swP(p){
-    pair=p; 
-    document.getElementById('sN').innerText=p; 
+    pair=p;
+    document.getElementById('sN').innerText=p;
     buildP();
-    candles=[]; 
-    cS.setData([]); 
-    kernelSeries.setData([]); 
-    r1S.setData([]); 
+    candles=[];
+    cS.setData([]);
+    kernelSeries.setData([]);
+    r1S.setData([]);
     r2S.setData([]);
-    loadHist(); 
-    startWS();
-    
+    if (typeof fibSeries !== 'undefined') fibSeries.forEach(s => s.setData([]));
+    loadHist(); // loadHist içinde canlı akış da yeniden başlar
+
     // Grafiğin olduğu yere odaklan
     const main = document.getElementById('main');
     if(main) main.scrollIntoView({ behavior: 'smooth' });
@@ -73,9 +72,10 @@ function swP(p){
  * Grafikteki sinyaller üzerinden simülasyon yapar.
  */
 function runBacktest() {
-    const markers = cS.markers(); 
-    if (!markers || markers.length < 1) {
-        alert("Backtest için yeterli sinyal yok! Lütfen algoritmaların açık olduğundan emin olun.");
+    // Yalnızca gerçek AL/SAT sinyalleri (side taşıyanlar) — A,B,Q,W1,P,W2 etiketleri hariç
+    const markers = (cS.markers() || []).filter(m => m.side);
+    if (markers.length < 1) {
+        alert("Backtest için sinyal yok! QP Trading açık olmalı ve grafikte en az bir 'QP AL' sinyali oluşmalı.");
         return;
     }
 
@@ -152,22 +152,22 @@ function runBacktest() {
         resEl.style.display = 'block';
         statsEl.innerHTML = `
             <div style="font-weight:bold;margin-bottom:8px;border-bottom:1px solid #333;color:var(--green)">
-                📊 ICT BACKTEST RAPORU (SL/TP)
+                📊 QP TRADING BACKTEST RAPORU
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-                <span>Başlangıç:</span> <span>$100.00</span>
+                <span>Başlangıç:</span> <span>₺100.00</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:4px">
                 <span>İşlem Sayısı:</span> <span>${trades}</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:4px;color:${color}">
-                <span>Net Kâr/Zarar:</span> <span>$${netProfit.toFixed(2)}</span>
+                <span>Net Kâr/Zarar:</span> <span>₺${netProfit.toFixed(2)}</span>
             </div>
             <div style="display:flex;justify-content:space-between;font-weight:bold;color:${color}">
                 <span>Yüzde Getiri:</span> <span>%${profitPercent}</span>
             </div>
             <div style="font-size:0.6rem;opacity:0.5;margin-top:8px;font-style:italic">
-                * Stop Loss: %2 | Take Profit: %4 (1:2 RR)
+                * Stop Loss: W1 dibi | Take Profit: A tepesi (yapısal seviyeler)
             </div>
         `;
     }

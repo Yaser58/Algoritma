@@ -13,18 +13,27 @@ function buildChart(){
     r1S=chart.addLineSeries({color:'#ffffff',lineWidth:2,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
     r2S=chart.addLineSeries({color:'#4444ff',lineWidth:1,priceScaleId:'rsi',lastValueVisible:false,priceLineVisible:false});
     
-    // Fibonacci Çizgileri
+    // Fibonacci Çizgileri (sıra: algorithm.js -> QP_FIB_LEVELS ile birebir aynı)
+    // [1.0(A), 0.786, 0.618, 0.5, 0.382, 0(B)] -> 0.618 ve 0.786 (giriş bölgesi) vurgulu
     fibSeries = [];
-    const fibColors = ['#ff4444', '#4444ff', '#ff4444', '#44ff44', '#44ff44', '#ffffff', '#ff4444', '#ffff44', '#ffff44', '#ffff44'];
-    for(let i=0; i<10; i++) {
+    const fibDefs = [
+        { color: '#ff5252', title: '1.0 (A)', w: 1 },
+        { color: '#ffd54f', title: '0.786',   w: 2 },
+        { color: '#ffb300', title: '0.618',   w: 2 },
+        { color: '#555555', title: '0.5',     w: 1 },
+        { color: '#555555', title: '0.382',   w: 1 },
+        { color: '#9e9e9e', title: '0 (B)',   w: 1 }
+    ];
+    fibDefs.forEach(d => {
         fibSeries.push(chart.addLineSeries({
-            color: fibColors[i],
-            lineWidth: 1,
+            color: d.color,
+            lineWidth: d.w,
             lineStyle: 2, // Kesikli çizgi
+            title: d.title,
             lastValueVisible: true,
             priceLineVisible: false
         }));
-    }
+    });
     
     // SL/TP Kutuları için özel seriler
     profitBoxSeries = chart.addCandlestickSeries({
@@ -74,7 +83,7 @@ function updPrice(c){
     // Sol üstteki fiyat (sP)
     const el = document.getElementById('sP');
     if(el) {
-        el.innerText = '$' + c.close.toFixed(currentPrecision);
+        el.innerText = '₺' + c.close.toFixed(currentPrecision);
     }
     
     // Sol üstteki yüzde değişimi (sC)
@@ -89,8 +98,8 @@ function updPrice(c){
     
     // Sağ üstteki canlı tik
     const lt = document.getElementById('liveTick');
-    if(lt) { 
-        lt.style.display = 'block'; 
-        lt.innerText = 'CANLI: $' + c.close.toFixed(currentPrecision); 
+    if(lt) {
+        lt.style.display = 'block';
+        lt.innerText = 'CANLI: ₺' + c.close.toFixed(currentPrecision);
     }
 }
