@@ -58,6 +58,16 @@ async function scanFetch(sym, interval, range) {
     return null;
 }
 
+// Tarama için mum verisi: TD anahtarı varsa Twelve Data, yoksa Yahoo proxy
+async function scanGetCandles(sym, interval, range) {
+    if (getTDKey()) {
+        const td = await fetchTD(sym, tf, 800);
+        return (td && td.candles && td.candles.length) ? td.candles : null;
+    }
+    const r = await scanFetch(sym, interval, range);
+    return r ? parseYahoo(r) : null;
+}
+
 // Bir mum dizisinde QP durumunu sınıflandırır: 'AL' | 'YAKLASIYOR' | null
 function classifyQP(arr) {
     const minDrop = (+document.getElementById('qpDrop').value || 2) / 100;
@@ -136,6 +146,7 @@ async function startScan() {
     }
 
     const { interval, range } = scanParams();
+    const useTD = !!getTDKey();
     const total = syms.length;
     let i = 0, done = 0, matches = 0;
 
@@ -143,22 +154,20 @@ async function startScan() {
         while (qpScanning && i < syms.length) {
             const sym = syms[i++];
             try {
-                const r = await scanFetch(sym, interval, range);
-                if (r) {
-                    const cndls = parseYahoo(r);
-                    if (cndls.length >= 60) {
-                        const m = classifyQP(cndls);
-                        if (m) { matches++; addScanResult(sym, m); }
-                    }
+                const cndls = await scanGetCandles(sym, interval, range);
+                if (cndls && cndls.length >= 60) {
+                    const m = classifyQP(cndls);
+                    if (m) { matches++; addScanResult(sym, m); }
                 }
             } catch (e) { /* sembol atlandı */ }
             done++;
             setScanStatus(`Taranıyor: ${done}/${total}  —  ${matches} eşleşme` + (qpThrottled ? `  (${qpThrottled} atlandı)` : ''));
+            if (useTD) await new Promise(r => setTimeout(r, 8000)); // TD ücretsiz limit ~8 istek/dk
         }
     }
 
-    // Düşük eşzamanlılık: paylaşımlı proxy IP'lerinin hız sınırını zorlamamak için
-    const CONC = (scope === 'all') ? 3 : 4;
+    // Düşük eşzamanlılık: hız sınırını zorlamamak için (TD'de tek sıra + bekleme)
+    const CONC = useTD ? 1 : 2;
     const pool = [];
     for (let w = 0; w < CONC; w++) pool.push(worker());
     await Promise.all(pool);

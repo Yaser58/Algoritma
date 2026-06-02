@@ -123,6 +123,19 @@ window.addEventListener('load', () => {
     const search = document.getElementById('pSearch');
     if (search) search.addEventListener('input', buildP);
 
+    // Twelve Data API anahtarı (opsiyonel, localStorage'da saklanır)
+    const tdK = document.getElementById('tdKey');
+    if (tdK) {
+        try { tdK.value = localStorage.getItem('td_apikey') || ''; } catch (e) {}
+        tdK.addEventListener('change', () => {
+            const v = tdK.value.trim();
+            try { localStorage.setItem('td_apikey', v); } catch (e) {}
+            sLog(v ? 'Twelve Data anahtarı kaydedildi — yeniden yükleniyor...' : 'Anahtar temizlendi — Yahoo proxy kullanılacak.');
+            candles = []; cS.setData([]); isHistLoaded = false;
+            loadHist();
+        });
+    }
+
     // Zaman dilimi değişimi
     document.getElementById('tfS').onchange = function () {
         tf = this.value;
