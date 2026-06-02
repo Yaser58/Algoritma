@@ -66,49 +66,85 @@ function _getZigzag(arr, lookback) {
  */
 function findQP(arr, minDrop, tol, lb) {
     const out = { latest: null, signals: [] };
-    if (!arr || arr.length < 60) return out;
+    const n = arr ? arr.length : 0;
+    if (n < 50) return out;
 
-    const zz = _getZigzag(arr, lb);
+    const W = 80;                       // her bacak için arama penceresi (bar)
+    const il = Math.max(2, lb - 1);     // iç pivotlar (Q,W1,P,W2) için biraz daha hassas
+    const mk = (i, isHigh) => ({ i, price: isHigh ? arr[i].high : arr[i].low, time: arr[i].time });
     const seen = new Set();
+    let bestRef = -1;
 
-    for (let k = 0; k + 5 < zz.length; k++) {
-        const A = zz[k], B = zz[k + 1], Q = zz[k + 2], W1 = zz[k + 3], P = zz[k + 4], W2 = zz[k + 5];
-        if (A.type !== 'H' || B.type !== 'L' || Q.type !== 'H' || W1.type !== 'L' || P.type !== 'H' || W2.type !== 'L') continue;
+    // Her belirgin tepe A için pencereli arama (ardışık pivot zorunluluğu yok -> gürültüye dayanıklı)
+    for (let a = lb; a < n - 5; a++) {
+        if (!_isSwingHigh(arr, a, lb)) continue;
+        const Ap = arr[a].high;
 
-        const range = A.price - B.price;
-        if (range <= 0) continue;
+        // B = A sonrası penceredeki en düşük dip (A tekrar aşılırsa düşüş iptal -> dur)
+        let bI = -1, bLow = Infinity;
+        for (let j = a + 1; j < Math.min(a + W, n); j++) {
+            if (arr[j].high > Ap) break;
+            if (arr[j].low < bLow) { bLow = arr[j].low; bI = j; }
+        }
+        if (bI === -1) continue;
 
         // 1) DİK DÜŞÜŞ: A→B yeterince sert mi?
-        if ((range / A.price) < minDrop) continue;
+        const range = Ap - bLow;
+        if (range <= 0 || (range / Ap) < minDrop) continue;
 
-        // 2) Q, fibonun 0.618–0.786 bölgesine temas etmeli ve A'yı geçmemeli
-        const f618 = B.price + range * 0.618;
-        const f786 = B.price + range * 0.786;
-        const band = range * tol;
-        if (Q.price < f618 - band) continue;   // bölgeye ulaşamadı
-        if (Q.price > f786 + band) continue;   // bölgeyi aştı (temas değil)
-        if (Q.price >= A.price) continue;       // retracement: A'nın altında kalmalı
+        const f618 = bLow + range * 0.618, f786 = bLow + range * 0.786, band = range * tol;
 
-        // 3) W1, B'nin altına inmemeli (daha yüksek dip)
-        if (W1.price <= B.price) continue;
+        // 2) Q = B sonrası 0.618–0.786 bölgesine TEMAS eden ilk tepe (A altında), yeni dip olmadan
+        let qI = -1;
+        for (let j = bI + 1; j < Math.min(bI + W, n); j++) {
+            if (arr[j].low < bLow) break; // yeni dip -> bu A için geçersiz
+            if (arr[j].high >= f618 - band && arr[j].high <= f786 + band && arr[j].high < Ap && _isSwingHigh(arr, j, il)) { qI = j; break; }
+        }
+        if (qI === -1) continue;
+        const Qp = arr[qI].high;
 
-        // 4) P, Q'yu geçmemeli ve W1'in üzerinde olmalı
-        if (P.price >= Q.price) continue;
-        if (P.price <= W1.price) continue;
+        // 3) W1 = Q sonrası ilk dip; B'nin ALTINA inmemeli (daha yüksek dip)
+        let w1I = -1, w1Low = Infinity;
+        for (let j = qI + 1; j < Math.min(qI + W, n); j++) {
+            if (arr[j].high >= Qp) break; // Q aşıldı -> farklı yapı
+            if (arr[j].low < w1Low) { w1Low = arr[j].low; w1I = j; }
+            if (_isSwingLow(arr, j, il) && arr[j].low > bLow) { w1I = j; w1Low = arr[j].low; break; }
+        }
+        if (w1I === -1 || w1Low <= bLow) continue;
 
-        // 5) W2, W1'in altına inmemeli
-        if (W2.price <= W1.price) continue;
+        // 4) P = W1 sonrası tepe; Q'yu GEÇMEZ (P<Q) ve W1'in üzerinde
+        let pI = -1;
+        for (let j = w1I + 1; j < Math.min(w1I + W, n); j++) {
+            if (arr[j].low < w1Low) break;   // W1 kırıldı
+            if (arr[j].high >= Qp) break;    // Q'yu geçti -> P değil
+            if (_isSwingHigh(arr, j, il) && arr[j].high < Qp && arr[j].high > w1Low) { pI = j; break; }
+        }
+        if (pI === -1) continue;
+        const Pp = arr[pI].high;
 
-        // İskelet geçerli -> W2 sonrası P kırılımını (close > P) ara
-        const pLevel = P.price;
+        // 5) W2 = P sonrası dip; W1'in ALTINA inmemeli (W2 > W1)
+        let w2I = -1, w2Low = Infinity, broke = false;
+        for (let j = pI + 1; j < Math.min(pI + W, n); j++) {
+            if (arr[j].close > Pp) break; // W2 oluşmadan kırılım
+            if (arr[j].low < w2Low) { w2Low = arr[j].low; w2I = j; }
+            if (_isSwingLow(arr, j, il)) { if (arr[j].low <= w1Low) broke = true; w2I = j; w2Low = arr[j].low; break; }
+        }
+        if (w2I === -1 || broke || w2Low <= w1Low) continue;
+
+        // 6) SİNYAL: W2 sonrası fiyat P'yi yukarı kırınca (close > P, W1 kırılmadan)
         let sigIdx = -1;
-        for (let j = W2.i + 1; j < arr.length; j++) {
-            if (arr[j].low < W1.price) break;              // W1 kırılırsa desen geçersiz
-            if (arr[j].close > pLevel) { sigIdx = j; break; }
+        for (let j = w2I + 1; j < n; j++) {
+            if (arr[j].low < w1Low) break;
+            if (arr[j].close > Pp) { sigIdx = j; break; }
         }
 
-        const pat = { A, B, Q, W1, P, W2, pLevel, sigIdx, sl: W1.price, tp: A.price };
-        out.latest = pat; // zigzag kronolojik -> en son geçerli desen
+        const pat = {
+            A: mk(a, true), B: mk(bI, false), Q: mk(qI, true),
+            W1: mk(w1I, false), P: mk(pI, true), W2: mk(w2I, false),
+            pLevel: Pp, sigIdx, sl: w1Low, tp: Ap
+        };
+        const ref = sigIdx !== -1 ? sigIdx : w2I;
+        if (ref > bestRef) { bestRef = ref; out.latest = pat; } // en güncel desen
         if (sigIdx !== -1 && !seen.has(sigIdx)) {
             seen.add(sigIdx);
             out.signals.push({ index: sigIdx, type: 'BUY', sl: pat.sl, tp: pat.tp });

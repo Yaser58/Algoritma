@@ -1,27 +1,16 @@
 /* ============================================================
    data.js : BIST veri katmanı (Yahoo Finance + CORS proxy)
-   - Geçmiş mumlar: v8/finance/chart
-   - Canlı akış: websocket yok -> periyodik polling (~6 sn)
+   - Proxy'ler PARALEL yarıştırılır (ilk geçerli yanıt kazanır) -> hızlı.
+   - Her isteğe zaman aşımı (AbortController) -> asla takılmaz.
+   - Yükleme başarısızsa otomatik yeniden dener (throttle geçince yüklenir).
    - Not: Yahoo BIST verisi genelde ~15 dk gecikmelidir.
    ============================================================ */
 
 let dailyOpen = 0;
 let liveTimer = null;
 
-const YH_HOSTS = ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com'];
-
-// Yahoo CORS engelini aşmak için proxy zinciri (sırayla denenir)
-function proxify(url) {
-    return [
-        'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
-        'https://corsproxy.io/?url=' + encodeURIComponent(url),
-        'https://thingproxy.freeboard.io/fetch/' + url
-    ];
-}
-
 function yhSymbol(p) {
-    // Endeksler ve hisselerin tamamı BIST için ".IS" uzantısı alır
-    return p + '.IS';
+    return p + '.IS'; // endeksler ve hisseler BIST için ".IS"
 }
 
 function tfToYahoo(t) {
@@ -34,22 +23,55 @@ function tfToYahoo(t) {
     }
 }
 
-// Tek bir chart isteğini tüm host/proxy kombinasyonlarıyla dener
-async function fetchYahoo(symbol, interval, range) {
-    const path = `/v8/finance/chart/${yhSymbol(symbol)}?interval=${interval}&range=${range}&includePrePost=false`;
-    for (const host of YH_HOSTS) {
-        for (const url of proxify(host + path)) {
-            try {
-                const res = await fetch(url, { cache: 'no-store' });
-                if (!res.ok) continue;
-                const j = await res.json();
-                const r = j?.chart?.result?.[0];
-                if (r && r.timestamp) return r;
-                if (j?.chart?.error) continue;
-            } catch (e) { /* sıradaki proxy'yi dene */ }
-        }
+// Zaman aşımlı fetch: süre dolarsa isteği iptal eder, null döner (hata fırlatmaz)
+async function fetchWithTimeout(url, ms) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), ms);
+    try {
+        const res = await fetch(url, { cache: 'no-store', signal: ctrl.signal });
+        clearTimeout(t);
+        return res;
+    } catch (e) {
+        clearTimeout(t);
+        return null;
     }
-    throw new Error('Yahoo verisi alınamadı (proxy/CORS engeli olabilir).');
+}
+
+// Proxy yanıtından Yahoo chart sonucunu çıkarır (raw JSON veya allorigins {contents})
+function extractChart(txt) {
+    if (!txt || txt.indexOf('Too Many Requests') !== -1) return null;
+    let j;
+    try { j = JSON.parse(txt); } catch (e) { return null; }
+    if (j && j.chart && j.chart.result) return j.chart.result[0] || null;
+    if (j && typeof j.contents === 'string') {
+        try { return JSON.parse(j.contents)?.chart?.result?.[0] || null; } catch (e) { return null; }
+    }
+    return null;
+}
+
+// Yahoo chart isteğini birden çok proxy ile PARALEL dener; ilk geçerli sonucu döner
+async function fetchYahoo(symbol, interval, range) {
+    const yq = `https://query1.finance.yahoo.com/v8/finance/chart/${yhSymbol(symbol)}?interval=${interval}&range=${range}&includePrePost=false`;
+    const proxies = [
+        'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(yq),
+        'https://api.allorigins.win/raw?url=' + encodeURIComponent(yq),
+        'https://api.allorigins.win/get?url=' + encodeURIComponent(yq),
+        'https://corsproxy.io/?url=' + encodeURIComponent(yq),
+        'https://thingproxy.freeboard.io/fetch/' + yq
+    ];
+    const attempts = proxies.map(u => (async () => {
+        const res = await fetchWithTimeout(u, 9000);
+        if (!res || !res.ok) throw new Error('bad');
+        const txt = await res.text();
+        const r = extractChart(txt);
+        if (!r || !r.timestamp) throw new Error('noData');
+        return r;
+    })());
+    try {
+        return await Promise.any(attempts); // ilk başarılı yanıt
+    } catch (e) {
+        return null; // hepsi başarısız (throttle / ağ)
+    }
 }
 
 // Yahoo cevabını mum dizisine çevirir (BIST saati = UTC+3 -> +10800)
@@ -67,45 +89,51 @@ function parseYahoo(r) {
 
 async function loadHist() {
     if (liveTimer) { clearInterval(liveTimer); liveTimer = null; }
-    cSt(false, 'YÜKLENİYOR...');
+    isHistLoaded = false;
+    const reqPair = pair;
     document.getElementById('sN').innerText = pair;
-    try {
-        const { interval, range } = tfToYahoo(tf);
-        const r = await fetchYahoo(pair, interval, range);
-        const meta = r.meta || {};
-        dailyOpen = meta.chartPreviousClose || meta.previousClose || 0;
+    cSt(false, 'YÜKLENİYOR...');
 
-        // Mumları temizle, tekille ve sırala
-        const parsed = parseYahoo(r);
-        candles = [...new Map(parsed.map(c => [c.time, c])).values()].sort((a, b) => a.time - b.time);
+    const { interval, range } = tfToYahoo(tf);
+    const r = await fetchYahoo(pair, interval, range);
 
-        if (candles.length > 0) {
-            cp = meta.regularMarketPrice || candles[candles.length - 1].close;
-            updatePrecision(cp);
-            updPrice({ close: cp });
-        } else {
-            sLog('UYARI: ' + pair + ' için veri bulunamadı (borsa kapalı veya sembol geçersiz).');
-        }
+    // Kullanıcı bu sırada başka hisseye geçtiyse bu yüklemeyi iptal et
+    if (pair !== reqPair) return;
 
-        cS.setData(candles);
-        cSt(true, 'ONLINE');
-        document.getElementById('dataSource').innerText = 'KAYNAK: YAHOO (BIST ~15dk gecikmeli)';
-        isHistLoaded = true;
-        calcInd();
-
-        // Güncel fiyata ve son mumlara odaklan
-        setTimeout(() => {
-            const count = candles.length;
-            if (count > 0) {
-                chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, count - 150), to: count });
-            }
-        }, 200);
-
-        startLive();
-    } catch (e) {
-        cSt(false, 'HATA');
-        sLog('HATA: ' + e.message);
+    if (!r) {
+        cSt(false, 'VERİ ALINAMADI');
+        document.getElementById('dataSource').innerText = 'KAYNAK: Yahoo proxy meşgul — 8 sn sonra otomatik denenecek';
+        sLog('UYARI: ' + pair + ' verisi alınamadı (proxy/hız sınırı). Otomatik tekrar denenecek...');
+        setTimeout(() => { if (pair === reqPair && !isHistLoaded) loadHist(); }, 8000);
+        return;
     }
+
+    const meta = r.meta || {};
+    dailyOpen = meta.chartPreviousClose || meta.previousClose || 0;
+
+    const parsed = parseYahoo(r);
+    candles = [...new Map(parsed.map(c => [c.time, c])).values()].sort((a, b) => a.time - b.time);
+
+    if (candles.length > 0) {
+        cp = meta.regularMarketPrice || candles[candles.length - 1].close;
+        updatePrecision(cp);
+        updPrice({ close: cp });
+    } else {
+        sLog('UYARI: ' + pair + ' için mum verisi boş (borsa kapalı veya sembol geçersiz).');
+    }
+
+    cS.setData(candles);
+    cSt(true, 'ONLINE');
+    document.getElementById('dataSource').innerText = 'KAYNAK: YAHOO (BIST ~15dk gecikmeli)';
+    isHistLoaded = true;
+    calcInd();
+
+    setTimeout(() => {
+        const count = candles.length;
+        if (count > 0) chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, count - 150), to: count });
+    }, 200);
+
+    startLive();
 }
 
 function startLive() {
@@ -115,39 +143,33 @@ function startLive() {
 
 async function pollLive() {
     if (!isHistLoaded || document.hidden) return;
-    try {
-        const { interval } = tfToYahoo(tf);
-        const r = await fetchYahoo(pair, interval, '1d'); // sadece son güne ait küçük veri
-        const meta = r.meta || {};
-        lastWsMsgTime = Date.now();
-
-        const recent = parseYahoo(r);
-        if (meta.regularMarketPrice) {
-            cp = +meta.regularMarketPrice;
-            updPrice({ close: cp });
-        }
-
-        if (candles.length && recent.length) {
-            let changed = false;
-            recent.forEach(rc => {
-                const last = candles[candles.length - 1];
-                if (rc.time > last.time) {
-                    candles.push(rc);
-                    cS.update(rc);
-                    changed = true;
-                } else if (rc.time === last.time) {
-                    Object.assign(last, rc);
-                    cS.update(last);
-                    changed = true;
-                }
-            });
-            updPnl();
-            if (changed) calcInd();
-        }
-
-        const lt = document.getElementById('liveTick');
-        if (lt) { lt.style.display = 'block'; lt.innerText = 'CANLI: ₺' + cp.toFixed(currentPrecision); }
-    } catch (e) {
+    const { interval } = tfToYahoo(tf);
+    const r = await fetchYahoo(pair, interval, '1d'); // son güne ait küçük veri
+    if (!r) {
         document.getElementById('dataSource').innerText = 'KAYNAK: YAHOO (akış meşgul, yeniden denenecek)';
+        return;
     }
+    lastWsMsgTime = Date.now();
+    const meta = r.meta || {};
+    const recent = parseYahoo(r);
+
+    if (meta.regularMarketPrice) {
+        cp = +meta.regularMarketPrice;
+        updPrice({ close: cp });
+    }
+
+    if (candles.length && recent.length) {
+        let changed = false;
+        recent.forEach(rc => {
+            const last = candles[candles.length - 1];
+            if (rc.time > last.time) { candles.push(rc); cS.update(rc); changed = true; }
+            else if (rc.time === last.time) { Object.assign(last, rc); cS.update(last); changed = true; }
+        });
+        updPnl();
+        if (changed) calcInd();
+    }
+
+    document.getElementById('dataSource').innerText = 'KAYNAK: YAHOO (BIST ~15dk gecikmeli)';
+    const lt = document.getElementById('liveTick');
+    if (lt) { lt.style.display = 'block'; lt.innerText = 'CANLI: ₺' + cp.toFixed(currentPrecision); }
 }
