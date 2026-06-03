@@ -22,11 +22,13 @@ const BIST_LIQUID = [
 // Tarama için hafif veri aralığı (grafik yüklemesinden daha küçük tutulur)
 function scanParams() {
     switch (tf) {
-        case '1m':  return { interval: '1m',  range: '1d' };
-        case '5m':  return { interval: '5m',  range: '5d' };
-        case '15m': return { interval: '15m', range: '5d' };
+        case '1d':  return { interval: '1d',  range: '1y' };
+        case '1wk': return { interval: '1wk', range: '5y' };
         case '1h':  return { interval: '60m', range: '1mo' };
-        default:    return { interval: '5m',  range: '5d' };
+        case '15m': return { interval: '15m', range: '5d' };
+        case '5m':  return { interval: '5m',  range: '5d' };
+        case '1m':  return { interval: '1m',  range: '1d' };
+        default:    return { interval: '1d',  range: '1y' };
     }
 }
 

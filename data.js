@@ -43,7 +43,7 @@ function getTDKey() {
 }
 
 function tdInterval(t) {
-    return ({ '1m': '1min', '5m': '5min', '15m': '15min', '1h': '1h' })[t] || '5min';
+    return ({ '1m': '1min', '5m': '5min', '15m': '15min', '1h': '1h', '1d': '1day', '1wk': '1week' })[t] || '1day';
 }
 
 // "YYYY-MM-DD HH:MM:SS" -> epoch (İstanbul duvar saati UTC gibi ele alınır = +3 ofset gömülü)
@@ -84,11 +84,13 @@ function yhUrl(symbol, interval, range) {
 
 function tfToYahoo(t) {
     switch (t) {
-        case '1m':  return { interval: '1m',  range: '5d' };
-        case '5m':  return { interval: '5m',  range: '1mo' };
-        case '15m': return { interval: '15m', range: '1mo' };
+        case '1d':  return { interval: '1d',  range: '2y' };
+        case '1wk': return { interval: '1wk', range: '5y' };
         case '1h':  return { interval: '60m', range: '3mo' };
-        default:    return { interval: '5m',  range: '1mo' };
+        case '15m': return { interval: '15m', range: '1mo' };
+        case '5m':  return { interval: '5m',  range: '1mo' };
+        case '1m':  return { interval: '1m',  range: '5d' };
+        default:    return { interval: '1d',  range: '2y' };
     }
 }
 
@@ -195,6 +197,7 @@ async function loadHist() {
     updatePrecision(cp);
     updPrice({ close: cp });
 
+    if (chart) chart.applyOptions({ timeScale: { timeVisible: !(tf === '1d' || tf === '1wk'), secondsVisible: false } });
     cS.setData(candles);
     cSt(true, 'ONLINE');
     document.getElementById('dataSource').innerText = (src === 'TD')

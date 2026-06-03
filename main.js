@@ -58,7 +58,7 @@ const BIST_SYMBOLS = [
     'ZEDUR','ZOREN','ZRGYO'
 ];
 
-let pair = 'THYAO', tf = '5m';
+let pair = 'THYAO', tf = '1d';
 // Global değişkenler indicators.js içerisinde tanımlanmıştır.
 
 function playAlert() {
