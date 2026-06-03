@@ -157,6 +157,19 @@ function clearFib() {
     if (typeof fibSeries !== 'undefined') fibSeries.forEach(s => s.setData([]));
 }
 
+function clearPatternLine() {
+    if (typeof patternSeries !== 'undefined' && patternSeries) patternSeries.setData([]);
+}
+
+// Deseni grafikte birleştiren çizgi: A→B→Q→W1→P→W2 (+ kırılım noktası)
+function drawPatternLine(p) {
+    if (typeof patternSeries === 'undefined' || !patternSeries) return;
+    const pts = [p.A, p.B, p.Q, p.W1, p.P, p.W2].map(x => ({ time: x.time, value: x.price }));
+    if (p.sigIdx !== -1) pts.push({ time: candles[p.sigIdx].time, value: candles[p.sigIdx].close });
+    pts.sort((a, b) => a.time - b.time);
+    patternSeries.setData(pts);
+}
+
 // Geçerli desenin A-B aralığı için fibonacci seviyelerini çizer (aktif grafik)
 function drawFib(p) {
     const range = p.A.price - p.B.price;
@@ -189,7 +202,7 @@ function labelPattern(markers, p) {
 // Aktif grafik için QP tespiti: ayarları DOM'dan okur, fibo+etiket çizer
 function detectQP() {
     const enabled = document.getElementById('qpE')?.checked;
-    if (!enabled || candles.length < 60) { clearFib(); return { markers: [], signals: [] }; }
+    if (!enabled || candles.length < 60) { clearFib(); clearPatternLine(); return { markers: [], signals: [] }; }
 
     const minDrop = (+document.getElementById('qpDrop').value || 2) / 100;
     const tol = (+document.getElementById('qpTol').value || 3) / 100;
@@ -200,9 +213,11 @@ function detectQP() {
     const markers = [];
     if (res.latest) {
         drawFib(res.latest);
+        drawPatternLine(res.latest);
         labelPattern(markers, res.latest);
     } else {
         clearFib();
+        clearPatternLine();
     }
     return { markers, signals: res.signals };
 }

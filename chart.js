@@ -35,6 +35,15 @@ function buildChart(){
         }));
     });
     
+    // QP desen çizgisi: A→B→Q→W1→P→W2 noktalarını birleştirir (deseni gözle gösterir)
+    patternSeries = chart.addLineSeries({
+        color: '#e040fb',
+        lineWidth: 2,
+        lastValueVisible: false,
+        priceLineVisible: false,
+        crosshairMarkerVisible: false
+    });
+
     // SL/TP Kutuları için özel seriler
     profitBoxSeries = chart.addCandlestickSeries({
         upColor: 'rgba(0, 255, 65, 0.2)', 
