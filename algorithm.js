@@ -112,14 +112,15 @@ function findQP(arr, minDrop, tol, lb) {
         }
         if (w1I === -1 || w1Low <= bLow) continue;
 
-        // 4) P = W1 sonrası tepe; Q'yu GEÇMEZ (P<Q) ve W1'in üzerinde
-        let pI = -1;
+        // 4) P = W1 sonrası EN YÜKSEK tepe (< Q, W1 kırılmadan); yeterince büyük olmalı (küçük tepeler elenir)
+        let pI = -1, pHigh = -Infinity;
         for (let j = w1I + 1; j < Math.min(w1I + W, n); j++) {
             if (arr[j].low < w1Low) break;   // W1 kırıldı
-            if (arr[j].high >= Qp) break;    // Q'yu geçti -> P değil
-            if (_isSwingHigh(arr, j, il) && arr[j].high < Qp && arr[j].high > w1Low) { pI = j; break; }
+            if (arr[j].high >= Qp) break;    // Q'yu geçti
+            if (_isSwingHigh(arr, j, il) && arr[j].high < Qp && arr[j].high > pHigh) { pHigh = arr[j].high; pI = j; }
         }
         if (pI === -1) continue;
+        if (pHigh < w1Low + (Qp - w1Low) * 0.5) continue;  // P çok küçük -> ele (W1→Q'nun en az %50'si)
         const Pp = arr[pI].high;
 
         // 5) W2 = P sonrası dip; W1'in ALTINA inmemeli (W2 > W1)
